@@ -1,0 +1,7 @@
+{
+  "listen": "0.0.0.0",
+  "port": 9480,
+  "token": "",
+  "dllDir": "C:\\Program Files (x86)\\Bosch\\Digital Congress Network\\DCN-SW",
+  "verbose": false
+}

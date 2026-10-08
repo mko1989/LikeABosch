@@ -1,6 +1,6 @@
 node_modules/
 .env
-data/
+/data/
 launcher/node_modules/
 launcher/dist/
 .DS_Store
@@ -8,8 +8,8 @@ launcher/dist/
 bridge/dcn/bin/
 bridge/dcn/obj/
 # Bosch DCN-SW binaries supplied by the user (proprietary, never commit or redistribute)
-dcn/
-dist/
+/dcn/
+/dist/
 bridge/dicentis/bin/
 bridge/dicentis/obj/
 # Bosch's original documents (copyrighted): kept locally, not published. The extracted specs live in docs/protocol/.
@@ -30,3 +30,7 @@ docs/protocol/dcnm-api/*
 !docs/protocol/dcnm-api/BRIDGE.md
 docs/protocol/dcn-swsmd/
 bridge/dicentis/src/Fake/Fake.generated.cs
+bridge/dcn/src/Fake/Fake.generated.cs
+# .NET build output anywhere under bridge/ (also tools)
+bridge/**/bin/
+bridge/**/obj/

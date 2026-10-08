@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- dcn-bridge (WO-061, DEC-017). Release target: .NET Framework 4.8 on Windows (the Bosch DLLs use .NET Remoting).
+       Development/tests: add a modern target for the in-process fake, e.g. dotnet build -p:DevTfm=net10.0 -f net10.0 -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net48</TargetFrameworks>
+    <TargetFrameworks Condition="'$(DevTfm)' != ''">net48;$(DevTfm)</TargetFrameworks>
+    <AssemblyName>dcn-bridge</AssemblyName>
+    <RootNamespace>DcnBridge</RootNamespace>
+    <LangVersion>10</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Version>0.1.0</Version>
+    <!-- 32-bit process on Windows: loads both x86 and AnyCPU Bosch DLLs (DCN-SW 4.x era). Override with -p:PlatformTarget=x64. -->
+    <PlatformTarget Condition="'$(TargetFramework)' == 'net48' and '$(PlatformTarget)' == ''">x86</PlatformTarget>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- tools/ (inspect: its own net10 project) and test/ are not part of the bridge -->
+    <Compile Remove="tools/**" />
+    <Compile Remove="test/**" />
+    <!-- transport, JSON and value conversion shared with the dicentis-bridge (DEC-021) -->
+    <Compile Include="../common/*.cs" Link="common/%(Filename)%(Extension)" />
+    <None Remove="tools/**" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- for the selftest option: compare the DLLs with the documented API -->
+    <None Include="../../docs/protocol/dcn-swapi/api.json" Link="api.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="dcn-bridge.config.example.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <!-- Lets `dotnet build` compile net48 on macOS/Linux; no runtime dependency. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+</Project>
