@@ -7,7 +7,7 @@
 //   npm run dist -- --mac        # only macOS (add --arm64 / --x64 / --universal to pick one)
 //   npm run dist -- --win        # only Windows x64 (setup + zip; the Windows bridges are included when built)
 //   npm run dist -- --test       # version <package version>-test.<yyyymmdd> (WO-097 test builds)
-import { stripSpecs } from './strip-specs.mjs';
+import { stripSpecs, stripApi } from './strip-specs.mjs';
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -58,10 +58,17 @@ execFileSync('npm', ['ci', '--omit=dev', '--no-audit', '--no-fund', '--ignore-sc
 // ---------------------------------------------------------------- 2. package
 const require = createRequire(join(root, 'launcher/package.json'));
 const builder = require('electron-builder');
+// The bridges' build output carries a copy of the full api.json: stage each bridge and ship the stripped one (WO-107).
 const bridgeResources = ['dcn', 'dicentis']
   .map(dir => ({ dir, from: join(root, 'bridge', dir, 'bin/Release/net48') }))
   .filter(b => existsSync(b.from))
-  .map(b => ({ from: b.from, to: `bridges/${b.dir}`, filter: ['**/*', '!**/*.pdb'] }));
+  .map(b => {
+    const staged = join(dist, 'stage-bridges', b.dir);
+    rmSync(staged, { recursive: true, force: true });
+    cpSync(b.from, staged, { recursive: true, filter: src => !src.endsWith('.pdb') });
+    if (existsSync(join(staged, 'api.json'))) writeFileSync(join(staged, 'api.json'), `${JSON.stringify(stripApi(JSON.parse(readFileSync(join(staged, 'api.json'), 'utf8'))), null, 1)}\n`);
+    return { from: staged, to: `bridges/${b.dir}`, filter: ['**/*'] };
+  });
 
 const config = {
   appId: 'local.likeabosch.launcher',

@@ -32,13 +32,29 @@ WO-001 (repo setup, 2026-10-09 entries), WO-097/WO-100 (`npm run dist`, `scripts
 - Out: publishing stripped specs in the repository (a fresh clone still needs the spec files): ask the user.
 
 ## Acceptance criteria
-- [ ] `scripts/dist/strip-specs.mjs` + tests: prose guard passes; `npm test` passes with the stripped specs in place.
-- [ ] Installer contents checked: no Bosch sentences in the shipped specs; the packaged app starts (smoke test).
+- [x] `scripts/dist/strip-specs.mjs` + tests: prose guard passes; `npm test` passes with the stripped specs in place.
+- [x] Installer contents checked: no Bosch sentences in the shipped specs; the packaged app starts (smoke test).
 - [ ] Release v0.1.0 on GitHub with the installers and notes.
 
 ## Work log
 - 2026-10-09 (Claude Opus): created (in-progress).
+- 2026-10-09 (Claude Opus): `scripts/dist/strip-specs.mjs`: per-family stripping (conference operations: top-level only,
+  since request maps use names like `description` as data; types: + field/member texts; swagger: operation/parameter/
+  response/header/schema texts, schema property maps walked by value, shared parameters; DCN-SW/DCNM: prose keys whose
+  value is text, `obsolete` kept truthy). First scan left 4 Wireless texts (shared `parameters`, response headers) →
+  fixed. 168 files, 1.8 → 1.2 MB. `backend/test/strip-specs.test.js` 5/5 (incl. a prose guard on the real specs).
+  Proof the app needs none of the text: a copy of the project with the stripped specs in `docs/protocol` → `npm test`
+  308/308 and full `node scripts/ui-check.mjs` OK (54 scenarios, all systems).
+- 2026-10-09 (Claude Opus): `npm run dist` (mac x64 + arm64, win x64). Packaged `--smoke-test` hung on the macOS keychain
+  prompt (known since WO-100: unsigned rebuild) → stopped; dev launcher smoke: SMOKE TEST OK; packaged backend (bundle's
+  Electron as Node, scratch DATA_DIR, `LIKEABOSCH_SIMULATE=wired:12`): health up, simulated wired logged in, dicentis
+  bridge logged in, `dicentis.status` audio + languages true, Wireless ops listed with empty texts. Found a second
+  path: the Windows build bundles the bridges' build output, which carries a full `api.json` → bridges are staged and
+  their `api.json` stripped (the bridges never read the texts); Windows rebuilt. Final scan of the Windows zip and both
+  macOS app bundles for five known Bosch sentences: 0 hits.
 
 ## Decisions
+- The full specs stay in `docs/protocol` on the development machine (agents and docs use the texts); only the
+  distribution gets the stripped copies.
 
 ## Handoff
