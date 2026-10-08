@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- dicentis-bridge (WO-078, DEC-021). Release target: .NET Framework 4.8 on Windows (the DICENTIS API is .NET Framework).
+       Development/tests: add a modern target for the in-process fake, e.g. dotnet build -p:DevTfm=net10.0 -f net10.0 -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net48</TargetFrameworks>
+    <TargetFrameworks Condition="'$(DevTfm)' != ''">net48;$(DevTfm)</TargetFrameworks>
+    <AssemblyName>dicentis-bridge</AssemblyName>
+    <RootNamespace>DicentisBridge</RootNamespace>
+    <LangVersion>10</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Version>0.1.0</Version>
+    <!-- AnyCPU without Prefer32Bit: 64-bit on 64-bit Windows, like the DICENTIS software. -->
+    <PlatformTarget Condition="'$(TargetFramework)' == 'net48' and '$(PlatformTarget)' == ''">AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="tools/**" />
+    <Compile Remove="test/**" />
+    <None Remove="tools/**" />
+    <!-- transport, JSON and value conversion shared with the dcn-bridge (DEC-021) -->
+    <Compile Include="../common/*.cs" Link="common/%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- for the selftest option and for finding the documented interfaces without a property -->
+    <None Include="../../docs/protocol/dcnm-api/api.json" Link="api.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="dicentis-bridge.config.example.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <!-- Lets `dotnet build` compile net48 on macOS/Linux; no runtime dependency. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

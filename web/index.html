@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LikeABosch</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <script type="module" src="/js/main.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <button class="nav-toggle" id="nav-toggle" aria-label="Menu" aria-expanded="false">☰</button>
+    <div class="brand">LikeABosch</div>
+    <nav class="tabs" id="tabs" aria-label="Areas"></nav>
+    <div class="project-bar" id="project-bar" role="group" aria-label="Project"></div>
+    <div class="context" id="header-context"></div>
+    <a class="pill" id="connection-pill" href="#/settings/connection" data-state="disconnected">…</a>
+  </header>
+  <div class="banner" id="banner" hidden></div>
+  <div class="layout">
+    <nav class="app-nav" id="nav" aria-label="Views"></nav>
+    <main id="outlet" tabindex="-1"></main>
+  </div>
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+</body>
+</html>

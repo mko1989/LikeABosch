@@ -1,0 +1,463 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "DICENTIS Wireless WAP: undocumented endpoints used by LikeABosch",
+    "version": "fw 1.73.2081",
+    "description": "Curated from the WAP web UI (/js/app.js, firmware 1.73.2081, read 2026-10-07). Not part of the vendor REST API v1.7: may change with firmware. DEC-024. Never add /cameras, /network, /users, /licensing, factory reset (secrets / destructive)."
+  },
+  "basePath": "/api",
+  "paths": {
+    "/discuss": {
+      "get": {
+        "summary": "Discussion settings (\"Prepare\")",
+        "description": "mode 0 Open, 1 Override, 2 Voice, 3 PTT; maxOpenMics; waitingListSize; autoShift; allowCancelRTS; showFirstInWaitingList; showPossibleToSpeak; participantMicOff; priorityToneAudible; priorityOption; ambient; autoMicOff. Right: canPrepareMeeting.",
+        "x-source": "prepareServices.discuss",
+        "parameters": [
+          {
+            "name": "isPolling",
+            "in": "query",
+            "type": "boolean"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "summary": "Change the discussion settings (whole body, as the web UI)",
+        "description": "",
+        "x-source": "prepareServices.updateDiscuss",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/audio": {
+      "get": {
+        "summary": "Audio settings and levels",
+        "description": "Levels are steps (dB = start + step × value). Fields present depend on the device: master, pa, lsp, lineIn1/2, lineOut1..6, micInLvl, routingOption, testTone, ttRoute*, lspOffWhenMicOn, attenuate, lineOut3..6SeatId, ambientInput, microphoneInput, afsMode. Right: canConfigure.",
+        "x-source": "configAudioServices.audio",
+        "parameters": [
+          {
+            "name": "isPolling",
+            "in": "query",
+            "type": "boolean"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "summary": "Change one audio field (the web UI sends {field: value})",
+        "description": "",
+        "x-source": "configAudioServices.updateAudio",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/audio/master": {
+      "get": {
+        "summary": "Master volume {master}",
+        "description": "",
+        "x-source": "configAudioServices.volume",
+        "parameters": [
+          {
+            "name": "isPolling",
+            "in": "query",
+            "type": "boolean"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "summary": "Set the master volume",
+        "description": "",
+        "x-source": "configAudioServices.updateVolume",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "master": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "master"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/audio/equalizer/delegate-loudspeaker": {
+      "get": {
+        "summary": "Delegate loudspeaker equaliser bands (array)",
+        "description": "The web UI shows `enabled` inverted; gain -12..12.",
+        "x-source": "configEqualizerServices.equalizer",
+        "parameters": [
+          {
+            "name": "isPolling",
+            "in": "query",
+            "type": "boolean"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "summary": "Change bands (array with the changed band)",
+        "description": "",
+        "x-source": "configEqualizerServices.updateEqualizer",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/audio/equalizer/delegate-loudspeaker/coefficients": {
+      "get": {
+        "summary": "Equaliser filter coefficients (for the response curve)",
+        "description": "",
+        "x-source": "configEqualizerServices.equalizerCoefficients",
+        "parameters": [
+          {
+            "name": "isPolling",
+            "in": "query",
+            "type": "boolean"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/seats/status": {
+      "get": {
+        "summary": "Seat configuration status {isConfigurationModeOn, isSubscriptionModeOn, subscriptionStatus, licenses}",
+        "description": "",
+        "x-source": "configSeatsServices.seatsStatus",
+        "parameters": [
+          {
+            "name": "isPolling",
+            "in": "query",
+            "type": "boolean"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "summary": "Switch configuration (seat selection) / subscription mode",
+        "description": "",
+        "x-source": "configSeatsServices.updateSeatStatus",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/seats/deinit": {
+      "put": {
+        "summary": "De-initialise all seats {deinit: true}",
+        "description": "",
+        "x-source": "configSeatsServices.seatsDeinit",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "deinit": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "deinit"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/seats/remove": {
+      "put": {
+        "summary": "Remove disconnected seats {remove: true}",
+        "description": "",
+        "x-source": "configSeatsServices.seatsRemove",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "remove": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "remove"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/seats/range-test": {
+      "get": {
+        "summary": "Range test results",
+        "description": "",
+        "x-source": "configSeatsServices.rangeTest",
+        "parameters": [
+          {
+            "name": "isPolling",
+            "in": "query",
+            "type": "boolean"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "summary": "Start a range test",
+        "description": "",
+        "x-source": "configSeatsServices.startRangeTest",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/seats/{seat_id}": {
+      "put": {
+        "summary": "Change a seat: {id, name? (≤ 32 bytes), prio?, dual?, identification?, voting?, mode?, cameraId?, cameraPrepos?}",
+        "description": "",
+        "x-source": "configSeatsServices.updateSeat",
+        "parameters": [
+          {
+            "name": "seat_id",
+            "in": "path",
+            "required": true,
+            "type": "integer"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/seats/{seat_id}/selected": {
+      "put": {
+        "summary": "Select a seat (identify it) {selected}",
+        "description": "",
+        "x-source": "configSeatsServices.seatSelected",
+        "parameters": [
+          {
+            "name": "seat_id",
+            "in": "path",
+            "required": true,
+            "type": "integer"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "selected": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "selected"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/system/settings": {
+      "get": {
+        "summary": "System settings, e.g. showCompanyLogo (seat displays show the uploaded logo)",
+        "description": "",
+        "x-source": "systemService.getSystemSettings",
+        "parameters": [
+          {
+            "name": "isPolling",
+            "in": "query",
+            "type": "boolean"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "summary": "Change system settings",
+        "description": "",
+        "x-source": "systemService.updateSystemSettings",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/upgrades": {
+      "get": {
+        "summary": "Devices with upgrade state: 1 idle, 2 missing, 3 downloading, 4 programming, 5 rebooting, 6 done, 7 failed",
+        "description": "",
+        "x-source": "configUpgradeServices.devices",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "summary": "Start the upgrade of the uploaded file on these device ids (deviceID values as GET /upgrades lists them)",
+        "description": "",
+        "x-source": "configUpgradeServices.upgradeList",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {}
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  }
+}

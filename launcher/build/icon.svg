@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- LikeABosch app icon (WO-100): conference desk unit with a gooseneck microphone, lit mic ring.
+       Rendered to icon.png by scripts/dist/build.mjs (rsvg-convert); electron-builder derives .icns/.ico from it. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2f74d6"/>
+      <stop offset="1" stop-color="#173f85"/>
+    </linearGradient>
+    <linearGradient id="unit" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dfe7f5"/>
+    </linearGradient>
+  </defs>
+  <!-- macOS grid: 824 px tile with 100 px margin -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <!-- gooseneck -->
+  <path d="M 420 700 C 420 520, 470 400, 600 330" fill="none" stroke="#ffffff" stroke-width="34" stroke-linecap="round"/>
+  <!-- mic head + lit ring -->
+  <g transform="translate(600 330) rotate(-28)">
+    <rect x="-20" y="-34" width="200" height="68" rx="34" fill="#ffffff"/>
+    <path d="M 150 -34 A 34 34 0 0 1 150 34 Z" fill="#ff5a4e"/>
+  </g>
+  <!-- desk unit -->
+  <path d="M 250 790 L 300 690 L 724 690 L 774 790 Z" fill="url(#unit)"/>
+  <rect x="250" y="790" width="524" height="34" rx="10" fill="#c3d0e8"/>
+  <!-- mic button + speaker grille -->
+  <circle cx="620" cy="742" r="26" fill="#ff5a4e"/>
+  <g fill="#9fb2d6">
+    <rect x="340" y="722" width="170" height="10" rx="5"/>
+    <rect x="335" y="746" width="180" height="10" rx="5"/>
+  </g>
+</svg>

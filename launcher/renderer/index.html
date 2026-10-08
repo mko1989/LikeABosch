@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'">
+  <title>LikeABosch Launcher</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>LikeABosch</h1>
+    <div class="status-row">
+      <span class="pill" id="server-pill" data-state="stopped">Server: stopped</span>
+      <span class="pill" id="dicentis-pill" data-state="disconnected">DICENTIS: not connected</span>
+      <span id="bridge-pills"></span>
+    </div>
+    <p class="error" id="status-error" hidden></p>
+  </header>
+
+  <main>
+    <form id="settings" autocomplete="off" novalidate>
+      <fieldset id="sim-fields">
+        <legend>Simulation (no hardware)</legend>
+        <div class="row">
+          <label class="grow">Connect to
+            <select name="simulate">
+              <option value="">The real system configured below</option>
+              <option value="wired">Simulated DICENTIS (wired)</option>
+              <option value="wireless">Simulated DICENTIS Wireless</option>
+              <option value="dcn">Simulated DCN NG (control)</option>
+              <option value="dcn-smd">Simulated DCN NG (meeting data)</option>
+            </select>
+          </label>
+          <label class="narrow" id="sim-seats">Seats
+            <input name="simulateSeats" type="number" min="1" max="500" required>
+          </label>
+        </div>
+        <p class="hint" id="sim-hint" hidden>The simulated system runs inside LikeABosch and connects on start, with its own project. The real-system settings below are kept; switch back here or in the web interface (Settings → Connection → Simulation).</p>
+      </fieldset>
+
+      <fieldset id="real-fields">
+        <legend>DICENTIS system</legend>
+        <label>System
+          <select name="system">
+            <option value="wired">DICENTIS (wired server)</option>
+            <option value="wireless">DICENTIS Wireless (WAP)</option>
+            <option value="dcn-smd">DCN Next Generation: meeting data stream (read-only)</option>
+            <option value="dcn">DCN Next Generation: full control (via dcn-bridge)</option>
+          </select>
+        </label>
+        <div class="row">
+          <label class="grow">Host / IP address
+            <input name="host" type="text" placeholder="e.g. dicentis-server.local" spellcheck="false">
+          </label>
+          <label class="narrow">Port
+            <input name="port" type="number" min="1" max="65535" placeholder="31416">
+          </label>
+        </div>
+        <p class="hint" id="smd-hint" hidden>Host = the PC running the DCN-SW server (port 20000). No login needed: the DCN-SW server accepts clients by IP address.</p>
+        <label class="check" id="tls-row"><input name="tlsInsecure" type="checkbox"> Accept self-signed server certificate</label>
+        <div id="dcnm-fields" hidden>
+          <label class="check"><input name="dcnmBridge" type="checkbox"> Full DICENTIS API through the dicentis-bridge (seat assignment, participants, audio …)</label>
+          <div id="dcnm-detail">
+            <p class="hint">Needs a Windows PC with the DICENTIS software. On this PC (host empty) the launcher starts the bridge. Once connected, assign the device to a seat with manage rights in DICENTIS.</p>
+            <div class="row">
+              <label class="grow">Bridge host
+                <input name="dcnmHost" type="text" placeholder="this PC" spellcheck="false">
+              </label>
+              <label class="narrow">Bridge port
+                <input name="dcnmPort" type="number" min="1" max="65535" placeholder="9481">
+              </label>
+            </div>
+            <div class="row">
+              <label class="grow">Device name
+                <input name="dcnmDevice" type="text" placeholder="empty = don't connect as a device" spellcheck="false">
+              </label>
+              <label class="grow">DICENTIS server for the API (optional)
+                <input name="dcnmServer" type="text" placeholder="found automatically" spellcheck="false">
+              </label>
+            </div>
+            <label>DICENTIS software folder (optional)
+              <input name="dcnmDllDir" type="text" placeholder="C:\Program Files\Bosch\DICENTIS" spellcheck="false">
+            </label>
+          </div>
+        </div>
+        <div id="dcn-fields" hidden>
+          <p class="hint">Host and port of the dcn-bridge on the DCN-SW PC (localhost: the launcher starts it on this PC). Username and password below are the DCN-SW user.</p>
+          <label>DCN-SW server (as seen from the bridge)
+            <input name="dcnServer" type="text" placeholder="tcp://localhost:9461" spellcheck="false">
+          </label>
+          <label>DCN-SW folder (optional, when the launcher starts the bridge)
+            <input name="dcnBridgeDllDir" type="text" placeholder="C:\Program Files (x86)\Bosch\Digital Congress Network\DCN-SW" spellcheck="false">
+          </label>
+        </div>
+        <div id="token-row" hidden>
+          <label>Bridge token (optional)
+            <input name="bridgeToken" type="password" autocomplete="new-password">
+          </label>
+          <p class="hint" id="token-hint"></p>
+        </div>
+        <div id="dcn-stream-fields" hidden>
+          <label class="check"><input name="smdStream" type="checkbox"> Also read the meeting data stream (live interpreter desks)</label>
+          <div class="row" id="smd-stream-fields">
+            <label>Stream host
+              <input name="smdHost" type="text" placeholder="same as the bridge" spellcheck="false">
+            </label>
+            <label>Stream port
+              <input name="smdPort" type="number" min="1" max="65535" placeholder="20000">
+            </label>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset id="login-fields">
+        <legend>Login</legend>
+        <label>Username
+          <input name="user" type="text" spellcheck="false" autocomplete="off">
+        </label>
+        <label>Password
+          <span class="password">
+            <input name="password" type="password" autocomplete="new-password">
+            <button type="button" id="toggle-password" class="secondary" aria-label="Show password">Show</button>
+          </span>
+        </label>
+        <p class="hint" id="password-hint"></p>
+        <label class="check"><input name="autoConnect" type="checkbox"> Connect automatically when the server starts</label>
+      </fieldset>
+
+      <details id="bridges-panel">
+        <summary>Bridges (Windows)</summary>
+        <label class="check"><input name="manageBridges" type="checkbox"> Start the bridge the settings need on this PC</label>
+        <label>dicentis-bridge.exe (optional)
+          <input name="dcnmExe" type="text" placeholder="bundled / bridge\dicentis\bin\Release\net48" spellcheck="false">
+        </label>
+        <label>dcn-bridge.exe (optional)
+          <input name="dcnBridgeExe" type="text" placeholder="bundled / bridge\dcn\bin\Release\net48" spellcheck="false">
+        </label>
+      </details>
+
+      <fieldset>
+        <legend>Web interface</legend>
+        <label class="narrow">Port
+          <input name="webPort" type="number" min="1" max="65535" required>
+        </label>
+        <label class="check"><input name="lanAccess" type="checkbox"> Allow access from other computers on the network</label>
+        <p class="hint warn" id="lan-hint" hidden>The web interface has no login yet. Only enable this on a trusted network.</p>
+      </fieldset>
+
+      <p class="hint">Leave a connection field empty to manage it from the web interface instead. Fields filled in here are locked there.</p>
+      <p class="error" id="form-error" hidden></p>
+      <p class="notice" id="form-notice" hidden></p>
+
+      <div class="actions">
+        <button type="submit" class="secondary" id="save">Save settings</button>
+      </div>
+    </form>
+
+    <details id="log-panel">
+      <summary>Server log</summary>
+      <pre id="log" aria-live="polite"></pre>
+    </details>
+  </main>
+
+  <footer class="launch">
+    <button type="button" id="start-stop">Start server</button>
+    <span class="spacer"></span>
+    <button type="button" id="launch-gui" class="primary" disabled>Launch GUI</button>
+  </footer>
+  <script src="app.js" type="module"></script>
+</body>
+</html>

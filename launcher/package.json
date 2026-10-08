@@ -1,0 +1,16 @@
+{
+  "name": "likeabosch-launcher",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop launcher for LikeABosch (DEC-008)",
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "start": "node run-electron.cjs",
+    "smoke": "node run-electron.cjs --smoke-test"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
+  }
+}

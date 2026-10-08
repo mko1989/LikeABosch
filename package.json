@@ -1,0 +1,38 @@
+{
+  "name": "likeabosch",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Node.js backend + web UI client for Bosch DICENTIS conference systems",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env backend/src/server.js",
+    "dev": "node --watch --env-file-if-exists=.env backend/src/server.js",
+    "test": "node --test --test-reporter=spec --test-timeout=60000 \"backend/test/**/*.test.js\" \"mock/**/*.test.js\" \"launcher/test/*.test.js\" \"web/test/*.test.js\"",
+    "spec:check": "node scripts/validate-conference-spec.mjs && node scripts/crosscheck-conference-spec.mjs && node scripts/validate-dcn-spec.mjs && node scripts/validate-dcnm-spec.mjs",
+    "docs:spec": "node scripts/build-conference-reference.mjs",
+    "mock:wired": "node mock/wired/server.js",
+    "smoke:wired": "node --env-file-if-exists=.env scripts/smoke-wired.mjs",
+    "ui:check": "node scripts/ui-check.mjs",
+    "mock:wireless": "node mock/wireless/server.js",
+    "mock:dcn": "node mock/dcn/server.js",
+    "mock:dcn-smd": "node mock/dcn-smd/server.js",
+    "mock:dcnm": "node mock/dcnm/server.js",
+    "bridge:test": "node --test --test-reporter=spec --test-timeout=120000 bridge/dcn/test/conformance.test.mjs bridge/dicentis/test/conformance.test.mjs",
+    "bridge:gen": "node bridge/dcn/tools/gen-fake.mjs",
+    "bridge:gen:dicentis": "node bridge/dicentis/tools/gen-fake.mjs",
+    "bridge:inspect": "dotnet run --project bridge/dcn/tools/inspect -- dcn docs/protocol/dcn-swapi/api.json data/dcn-dll-report.json",
+    "e2e:wired": "node --env-file-if-exists=.env scripts/e2e-wired.mjs",
+    "e2e:mock": "node scripts/e2e-mock.mjs",
+    "e2e:wireless": "node --env-file-if-exists=.env scripts/e2e-wireless.mjs",
+    "e2e:wireless:mock": "node scripts/e2e-wireless-mock.mjs",
+    "dist": "node scripts/dist/build.mjs"
+  },
+  "dependencies": {
+    "atem-connection": "^3.10.3",
+    "express": "^5.2.1",
+    "ws": "^8.22.0"
+  }
+}

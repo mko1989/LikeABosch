@@ -1,0 +1,32 @@
+node_modules/
+.env
+data/
+launcher/node_modules/
+launcher/dist/
+.DS_Store
+*.log
+bridge/dcn/bin/
+bridge/dcn/obj/
+# Bosch DCN-SW binaries supplied by the user (proprietary, never commit or redistribute)
+dcn/
+dist/
+bridge/dicentis/bin/
+bridge/dicentis/obj/
+# Bosch's original documents (copyrighted): kept locally, not published. The extracted specs live in docs/protocol/.
+docs/source/
+# Scratch notes from chat sessions
+last_response.md
+next.md
+# Material extracted from / generated out of Bosch's documents: kept locally, never published (user decision 2026-10-09).
+# The backend and mocks load these at run time: a fresh clone needs them copied in (see work-orders/WO-001).
+docs/protocol/conference/*
+!docs/protocol/conference/SPEC-FORMAT.md
+docs/protocol/wireless-rest/swagger.yaml
+docs/protocol/wireless-rest/swagger.json
+docs/protocol/wireless-rest/README.md
+docs/protocol/dcn-swapi/*
+!docs/protocol/dcn-swapi/BRIDGE.md
+docs/protocol/dcnm-api/*
+!docs/protocol/dcnm-api/BRIDGE.md
+docs/protocol/dcn-swsmd/
+bridge/dicentis/src/Fake/Fake.generated.cs
