@@ -124,7 +124,7 @@ Statuses: `draft` · `ready` · `in-progress` · `blocked` · `review` · `done`
 | [WO-104](WO-104-room-widgets.md) | Room widgets: voting, audio, presentation (DEC-030) | 3 | review | 021, 024, 049, 081 | 2026-10-08 |
 | [WO-105](WO-105-presentation-into-dicentis.md) | Research: how a presentation gets into DICENTIS | 1 | done | — | 2026-10-08 |
 | [WO-106](WO-106-dcnm-seat-assignment-and-prep-editing.md) | DCNM: seat assignment, participant and agenda editing on a wired system | 3 | draft | 101 | 2026-10-08 |
-| [WO-107](WO-107-strip-bosch-text-and-release.md) | Ship specs without Bosch's text; fix ignore rules; release v0.1.0 | 4 | in-progress | 097, 100 | 2026-10-09 |
+| [WO-107](WO-107-strip-bosch-text-and-release.md) | Ship specs without Bosch's text; fix ignore rules; release v0.1.0 | 4 | done | 097, 100 | 2026-10-09 |
 
 ## Suggested order / parallelism
 

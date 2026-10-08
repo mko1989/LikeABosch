@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | in-progress |
+| **Status** | done |
 | **Phase** | 4 Hardening |
 | **Depends on** | WO-097, WO-100 |
 | **Assignee** | Claude Opus (main) |
@@ -34,7 +34,7 @@ WO-001 (repo setup, 2026-10-09 entries), WO-097/WO-100 (`npm run dist`, `scripts
 ## Acceptance criteria
 - [x] `scripts/dist/strip-specs.mjs` + tests: prose guard passes; `npm test` passes with the stripped specs in place.
 - [x] Installer contents checked: no Bosch sentences in the shipped specs; the packaged app starts (smoke test).
-- [ ] Release v0.1.0 on GitHub with the installers and notes.
+- [x] Release v0.1.0 on GitHub with the installers and notes.
 
 ## Work log
 - 2026-10-09 (Claude Opus): created (in-progress).
@@ -53,8 +53,15 @@ WO-001 (repo setup, 2026-10-09 entries), WO-097/WO-100 (`npm run dist`, `scripts
   their `api.json` stripped (the bridges never read the texts); Windows rebuilt. Final scan of the Windows zip and both
   macOS app bundles for five known Bosch sentences: 0 hits.
 
+- 2026-10-09 (Claude Opus): release https://github.com/mko1989/LikeABosch/releases/tag/v0.1.0 (tag on `1c9b574`), not a
+  draft; 6 assets uploaded (Windows setup + zip, macOS arm64/x64 dmg + zip); notes: install (unsigned), first start,
+  highlights, known limits (bridges only tested against simulations), "independent project, not by Bosch".
+
 ## Decisions
 - The full specs stay in `docs/protocol` on the development machine (agents and docs use the texts); only the
   distribution gets the stripped copies.
 
 ## Handoff
+- Delivered: stripped specs in all installers, ignore rules fixed (22 source files now in the repo), release v0.1.0.
+- Open: a fresh clone still lacks the spec files (gitignored); publishing the stripped specs in the repo would make it
+  runnable: ask the user. Code signing would remove the SmartScreen/Gatekeeper/keychain prompts (WO-029).
