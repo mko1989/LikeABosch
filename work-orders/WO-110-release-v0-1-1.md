@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | in-progress |
+| **Status** | done |
 | **Phase** | 4 Hardening |
 | **Depends on** | WO-107, WO-108, WO-109 |
 | **Assignee** | Claude Opus (main) |
@@ -26,9 +26,9 @@ specs stripped of Bosch's text), tag, `gh release create` with the 6 assets and 
 Version bump, tag `v0.1.1`, GitHub release.
 
 ## Acceptance criteria
-- [ ] `npm test` green on the release commit.
-- [ ] `npm run dist` produces the 6 assets named `LikeABosch-0.1.1-*`; no Bosch text in the bundles (scan as in WO-107).
-- [ ] Tag `v0.1.1` pushed; release published with 6 assets.
+- [x] `npm test` green on the release commit.
+- [x] `npm run dist` produces the 6 assets named `LikeABosch-0.1.1-*`; no Bosch text in the bundles (scan as in WO-107).
+- [x] Tag `v0.1.1` pushed; release published with 6 assets.
 
 ## Work log
 - 2026-10-10 (Claude Opus): Created. WO-108/109 committed (`5d7dc85`). Versions bumped with
@@ -37,8 +37,14 @@ Version bump, tag `v0.1.1`, GitHub release.
   dmg/zip, win x64 setup/zip). All three unpacked bundles contain `web/js/live-stream.js` and version 0.1.1. Bosch-text
   scan of the three bundles with 4 sample description strings (Conference Protocol, DCN-SW API, DCNM API, Wireless
   swagger): 0 hits; the same strings found in `docs/protocol` (positive control: 2/1/1/2 files).
+- 2026-10-10 (Claude Opus): Committed `31e0f47`, annotated tag `v0.1.1` on it, pushed main + tag. Release
+  https://github.com/mko1989/LikeABosch/releases/tag/v0.1.1 (not a draft, not a pre-release); 6 assets uploaded, sizes
+  match the local files. Notes: what's new (WO-108, WO-109; saved projects keep their delay), downloads, install
+  (unsigned) as in v0.1.0, known limits, compare link. Status → done.
 
 ## Decisions
 - Patch version (0.1.1): bug fixes and timing changes, no new features or breaking changes.
 
 ## Handoff
+Delivered: release v0.1.1 with 6 installers. Not signed (WO-029). WO-108 stays in review until the camera timing is
+checked with real cameras.
