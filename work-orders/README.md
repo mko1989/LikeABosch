@@ -127,6 +127,7 @@ Statuses: `draft` · `ready` · `in-progress` · `blocked` · `review` · `done`
 | [WO-107](WO-107-strip-bosch-text-and-release.md) | Ship specs without Bosch's text; fix ignore rules; release v0.1.0 | 4 | done | 097, 100 | 2026-10-09 |
 | [WO-108](WO-108-director-faster-shots.md) | Director: faster preset recalls, immediate overview (DEC-031) | 5 | review | 039, 056 | 2026-10-10 |
 | [WO-109](WO-109-web-ui-reconnects-to-backend.md) | Web UI reconnects to the backend by itself (no refresh needed) | 4 | done | 012, 018 | 2026-10-10 |
+| [WO-110](WO-110-release-v0-1-1.md) | Release v0.1.1 (WO-108, WO-109) | 4 | in-progress | 107, 108, 109 | 2026-10-10 |
 
 ## Suggested order / parallelism
 
