@@ -29,7 +29,7 @@ test('defaults; place seats and cameras; shots; overview; director; validation',
   assert.deepEqual(d.seats['seat-1'], { x: 100, y: 200, rotation: 0 });
   assert.deepEqual(d.shots['seat-1'], { cameraId: 'cam-1', preset: 3 });
   assert.equal(d.director.strategy, 'live');
-  assert.equal(d.director.delayMs, 500, 'unchanged default kept');
+  assert.equal(d.director.delayMs, 250, 'unchanged default kept (DEC-031)');
   assert.equal((await call('PUT', '/seats/seat-2', { x: 'a' })).status, 400);
   assert.equal((await call('PUT', '/shots/seat-2', { cameraId: 'cam-1' })).status, 400);
   assert.equal((await call('PUT', '/director', { strategy: 'chaos' })).status, 400);

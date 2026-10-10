@@ -167,3 +167,86 @@ describe('director end to end (wired mock + mock cameras + mock switcher)', () =
     await api('PATCH', '/devices/switcher', { automation: true });
   });
 });
+
+describe('director timing (DEC-031)', () => {
+  let mock;
+  let backend;
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const api = async (method, path, body) => {
+    const res = await fetch(`${backend.url}/api${path}`, { method, headers: body === undefined ? {} : { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+    return res.json();
+  };
+  const waitFor = async (fn, ms = 5000) => {
+    const end = Date.now() + ms;
+    while (Date.now() < end) { if (await fn()) return; await sleep(10); }
+    throw new Error('timeout');
+  };
+  const cam = id => backend.services.devices.cameras.get(id).driver;
+  const sw = () => backend.services.devices.switcher.driver;
+
+  before(async () => {
+    mock = await createMockWiredServer();
+    backend = await startConnectedBackend(mock);
+    await api('POST', '/devices/cameras', { name: 'Overview', driver: 'mock', switcherInput: 1 });   // cam-1
+    await api('POST', '/devices/cameras', { name: 'Speakers', driver: 'mock', switcherInput: 2 });   // cam-2
+    await api('PUT', '/devices/switcher', { driver: 'mock' });
+    await api('PUT', '/room/overview', { cameraId: 'cam-1', preset: 0 });
+    await api('PUT', '/room/shots/seat-3', { cameraId: 'cam-2', preset: 3 });
+    await api('PUT', '/room/shots/seat-4', { cameraId: 'cam-2', preset: 4 });
+    await api('POST', '/director/shot', {});
+    await waitFor(() => sw().program === 1);
+    await api('PUT', '/room/director', { enabled: true, strategy: 'safe', delayMs: 400, minShotMs: 5000, settleMs: 10 });
+  });
+  after(async () => { await backend.close(); await mock.close(); });
+
+  test('last mic off → overview at once (no delay, no minimum shot)', async () => {
+    await api('POST', '/domain/discussion/speakers', { seatId: 'seat-3' });
+    await waitFor(() => sw().program === 2);
+    const t = Date.now();
+    await api('DELETE', '/domain/discussion/speakers/seat-3');
+    await waitFor(() => sw().program === 1);
+    assert.ok(Date.now() - t < 300, `overview after ${Date.now() - t} ms`);
+  });
+
+  test('new speaker: off-air camera moves at once, the cut waits for the delay; the overview is not held by minShotMs', async () => {
+    const cuts = sw().cuts.length;
+    const t = Date.now();
+    await api('POST', '/domain/discussion/speakers', { seatId: 'seat-4' });
+    await waitFor(() => cam('cam-2').preset === 4, 300);
+    assert.equal(sw().program, 1, 'not cut yet');
+    await waitFor(() => sw().program === 2);
+    const took = Date.now() - t;
+    assert.ok(took >= 350 && took < 1500, `cut after ${took} ms`);
+    assert.deepEqual(sw().cuts.slice(cuts), [2], 'straight cut, no detour');
+  });
+
+  test('a mic that goes off again within the delay gets no shot (misclick)', async () => {
+    await api('PUT', '/room/director', { minShotMs: 0 });
+    const cuts = sw().cuts.length;
+    await api('POST', '/domain/discussion/speakers', { seatId: 'seat-3' });   // same camera, on air → not pre-positioned
+    await sleep(100);
+    await api('DELETE', '/domain/discussion/speakers/seat-3');
+    await sleep(600);
+    assert.equal(sw().cuts.length, cuts, 'no cut');
+    assert.equal(cam('cam-2').preset, 4, 'on-air camera not moved');
+    await api('DELETE', '/domain/discussion/speakers/seat-4');
+    await waitFor(() => sw().program === 1);
+  });
+
+  test('safe cut waits at most settleMs for a camera that reports arrival late', async () => {
+    await api('PUT', '/room/director', { delayMs: 0, settleMs: 200 });
+    const driver = cam('cam-2');
+    const recall = driver.recallPreset.bind(driver);
+    driver.recallPreset = async p => { await sleep(2000); return recall(p); };
+    try {
+      const t = Date.now();
+      await api('POST', '/domain/discussion/speakers', { seatId: 'seat-3' });
+      await waitFor(() => sw().program === 2);
+      const took = Date.now() - t;
+      assert.ok(took >= 150 && took < 1000, `cut after ${took} ms`);
+    } finally {
+      driver.recallPreset = recall;
+      await api('DELETE', '/domain/discussion/speakers/seat-3');
+    }
+  });
+});

@@ -125,6 +125,8 @@ Statuses: `draft` · `ready` · `in-progress` · `blocked` · `review` · `done`
 | [WO-105](WO-105-presentation-into-dicentis.md) | Research: how a presentation gets into DICENTIS | 1 | done | — | 2026-10-08 |
 | [WO-106](WO-106-dcnm-seat-assignment-and-prep-editing.md) | DCNM: seat assignment, participant and agenda editing on a wired system | 3 | draft | 101 | 2026-10-08 |
 | [WO-107](WO-107-strip-bosch-text-and-release.md) | Ship specs without Bosch's text; fix ignore rules; release v0.1.0 | 4 | done | 097, 100 | 2026-10-09 |
+| [WO-108](WO-108-director-faster-shots.md) | Director: faster preset recalls, immediate overview (DEC-031) | 5 | review | 039, 056 | 2026-10-10 |
+| [WO-109](WO-109-web-ui-reconnects-to-backend.md) | Web UI reconnects to the backend by itself (no refresh needed) | 4 | done | 012, 018 | 2026-10-10 |
 
 ## Suggested order / parallelism
 
@@ -144,6 +146,8 @@ Statuses: `draft` · `ready` · `in-progress` · `blocked` · `review` · `done`
   backend feature layer (DEC-029), testable in a simulated wired system with the linked mock bridge (WO-101); camera aim
   + seat tint on the plan (WO-103); Room widgets voting/audio/presentation (WO-104, DEC-030); presentation research
   (WO-105). Order: 105, 103, 101, 081, 102, 104.
+- **2026-10-10 (next.md):** faster camera shots + immediate overview (WO-108, DEC-031); web UI reconnects to the
+  backend without a refresh (WO-109).
 - Then WO-009 + WO-010 (client and mock together), then WO-011, WO-012, WO-013.
 - WO-016 (smoke test on real hardware) as soon as WO-011 works, since it surfaces spec errors early.
 - WO-030 (launcher) can start once WO-013 is done; it doesn't need the full UI.

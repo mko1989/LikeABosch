@@ -23,7 +23,7 @@ export default {
       const d = room()?.director;
       if (!d) return;
       const num = (name, label, value, max, hint) => h('label', { class: 'field' }, h('span', null, label),
-        h('input', { name, type: 'number', min: 0, max, step: 100, value: String(value) }), hint ? h('small', { class: 'muted' }, hint) : null);
+        h('input', { name, type: 'number', min: 0, max, step: 50, value: String(value) }), hint ? h('small', { class: 'muted' }, hint) : null);
       const form = h('form', { class: 'settings', novalidate: true },
         h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'enabled', checked: d.enabled }), ' Automatic camera control (follow the active microphone)'),
         h('fieldset', { class: 'radio-group' }, h('legend', null, 'Moving a camera that is on air'),
@@ -32,9 +32,9 @@ export default {
           h('label', { class: 'check' }, h('input', { type: 'radio', name: 'strategy', value: 'live', checked: d.strategy === 'live' }),
             h('span', null, h('strong', null, 'Live: '), 'recall the preset and cut immediately (camera movement may be visible).'))),
         h('div', { class: 'row three' },
-          num('delayMs', 'Delay after mic on (ms)', d.delayMs, 10000, 'Ignore very short mic activations.'),
-          num('minShotMs', 'Minimum shot (ms)', d.minShotMs, 60000, 'Hold each shot at least this long.'),
-          num('settleMs', 'Camera travel time (ms)', d.settleMs ?? 2500, 15000, 'Wait before cutting when the camera cannot report arrival.')),
+          num('delayMs', 'Delay after mic on (ms)', d.delayMs, 10000, 'Ignore very short mic activations. A camera that is not on air already moves meanwhile; the overview after the last mic is immediate.'),
+          num('minShotMs', 'Minimum shot (ms)', d.minShotMs, 60000, 'Hold each speaker shot at least this long.'),
+          num('settleMs', 'Camera travel time (ms)', d.settleMs ?? 2500, 15000, 'Longest wait before cutting to a camera that was just moved (cameras that report arrival are cut to sooner).')),
         h('div', { class: 'actions' }, h('button', { type: 'submit', class: 'primary' }, 'Save')));
       form.addEventListener('submit', async e => {
         e.preventDefault();

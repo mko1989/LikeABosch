@@ -1,5 +1,6 @@
 // Live store: state from the backend's SSE stream (DEC-005, DEC-009).
 import { initialState, reduce, topicData, can, isLive } from './store-core.js';
+import { openLiveStream } from './live-stream.js';
 
 export function createStore() {
   let state = initialState();
@@ -44,21 +45,31 @@ export function createStore() {
       return () => keys.forEach(k => listeners.get(k)?.delete(callback));
     },
 
-    /** Open the SSE stream. EventSource reconnects by itself; a fresh snapshot arrives on each reconnect. */
+    /** Open the SSE stream; it reopens itself (WO-109) and a fresh snapshot arrives on each reconnect. */
     start() {
-      const es = new EventSource('/api/events');
-      const on = (event, fn) => es.addEventListener(event, e => fn(JSON.parse(e.data)));
-      es.onopen = () => dispatch('stream', 'open');
-      es.onerror = () => dispatch('stream', 'lost');
-      on('snapshot', data => dispatch('snapshot', data));
-      on('topic', data => dispatch('topic', data));
-      on('connection', data => dispatch('connection', data));
-      on('notification', data => {
-        notifications.unshift({ ...data, receivedAt: new Date().toISOString() });
-        notifications.length = Math.min(notifications.length, 20);
-        emit('notification', data);
+      const stream = openLiveStream({
+        url: '/api/events',
+        onStatus: status => dispatch('stream', status),
+        handlers: {
+          snapshot: data => dispatch('snapshot', data),
+          topic: data => dispatch('topic', data),
+          connection: data => dispatch('connection', data),
+          notification: data => {
+            notifications.unshift({ ...data, receivedAt: new Date().toISOString() });
+            notifications.length = Math.min(notifications.length, 20);
+            emit('notification', data);
+          },
+        },
       });
-      return () => es.close();
+      const onVisible = () => { if (document.visibilityState === 'visible') stream.check(); };
+      const onOnline = () => stream.reconnect();
+      document.addEventListener('visibilitychange', onVisible);
+      window.addEventListener('online', onOnline);
+      return () => {
+        document.removeEventListener('visibilitychange', onVisible);
+        window.removeEventListener('online', onOnline);
+        stream.close();
+      };
     },
   };
 }

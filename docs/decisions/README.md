@@ -35,3 +35,4 @@ Rules: see "Decisions (ADRs)" in [/CLAUDE.md](../../CLAUDE.md).
 | [DEC-028](DEC-028-dcn-rs232-via-dcn-sw.md) | DCN with an RS-232 CCU = DCN-SW 3.x through the existing bridge path, version choice sets the port (supersedes DEC-017 §1 when accepted) | proposed |
 | [DEC-029](DEC-029-dicentis-features-over-dcnm.md) | DICENTIS-only features (audio/Dante, languages) as a backend feature layer over the DCNM API (`dicentis.*` topics, `/api/dicentis/*` actions); simulated wired systems include the full API (linked mocks) | accepted (user request + Claude) |
 | [DEC-030](DEC-030-room-widgets.md) | Room widgets (voting, audio, presentation) in the operate-mode side panel | accepted (user request + Claude) |
+| [DEC-031](DEC-031-director-fast-overview-and-preposition.md) | Director timing: immediate overview, pre-positioning off-air cameras, travel wait capped by `settleMs`, default delay 250 ms (extends DEC-012 §4) | accepted (user report + Claude) |

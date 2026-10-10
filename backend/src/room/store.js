@@ -14,7 +14,7 @@ export const DEFAULT_ROOM = {
   desks: {},                   // interpreter desk seatId (GetInterpreterSeats) → { x, y, rotation } (WO-048)
   shots: {},                   // seatId → { cameraId, preset }
   overview: null,              // { cameraId, preset }
-  director: { enabled: false, strategy: 'safe', delayMs: 500, minShotMs: 3000, settleMs: 2500 },
+  director: { enabled: false, strategy: 'safe', delayMs: 250, minShotMs: 3000, settleMs: 2500 }, // delayMs: DEC-031
   operate: { cogSendsPreview: false }, // room view behaviour in operate mode (WO-053)
   seatNames: {},               // seatId → name as the system called it (WO-096): matches the seats on another system
   triggers: { seats: {}, desks: {} }, // id → { on: [action], off: [action] }: Companion buttons (WO-099, DEC-027)

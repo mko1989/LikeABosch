@@ -21,6 +21,7 @@ export class Director extends EventEmitter {
     Object.assign(this, { cache, devices, room, log, settleMs });
     this.order = [];
     this.cameraPreset = {};    // camera → preset last recalled by us
+    this.arrival = {};         // camera → promise: resolves when the last recall arrived (or settleMs passed)
     this.onAirCamera = null;   // derived from switcher program input
     this.target = null;        // desired shot
     this.lastCutAt = 0;
@@ -73,15 +74,38 @@ export class Director extends EventEmitter {
     const before = this.order.join();
     this.order = updateOrder(this.order, speakers);
     if (this.order.join() !== before) this.#publish();
+    clearTimeout(this.timer); // a newer state replaces a pending shot: a mic that went off within the delay is ignored
     if (!this.settings.enabled) return;
     const seat = targetSeat(this.order, speakers);
     const shot = shotFor(seat, this.#automaticRoom());
     if (!shot || (this.target && this.target.cameraId === shot.cameraId && this.target.preset === shot.preset && this.target.seatId === shot.seatId)) return;
-    // Debounce: a new target waits `delayMs`; respect the minimum shot duration of what's on air.
-    clearTimeout(this.timer);
+    // DEC-031: nobody speaking → overview at once. A speaker waits `delayMs` (misclick filter) and the minimum duration
+    // of the speaker shot on air; meanwhile an off-air camera already moves to the preset.
+    if (seat === null) { this.#go(shot, 'automatic'); return; }
+    this.#preposition(shot);
     const wait = Math.max(this.settings.delayMs, this.lastCutAt + this.settings.minShotMs - Date.now(), 0);
-    this.timer = setTimeout(() => this.#go(shot, 'automatic'), wait);
+    this.timer = setTimeout(() => { if (this.settings.enabled) this.#go(shot, 'automatic'); }, wait);
     this.timer.unref?.();
+  }
+
+  /** Move the camera of a pending shot during the delay, if that cannot be seen: not on program, not the current shot. */
+  #preposition({ cameraId, preset }) {
+    if (this.running || cameraId === this.onAirCamera || cameraId === this.target?.cameraId || this.cameraPreset[cameraId] === preset) return;
+    this.#recall(cameraId, preset);
+  }
+
+  /**
+   * Send a recall without waiting for it. `arrival[cameraId]` resolves when the camera reports arrival, or `settleMs`
+   * after sending, whichever comes first (DEC-031); a failed recall resolves it at once (the camera did not move).
+   */
+  #recall(cameraId, preset) {
+    this.cameraPreset[cameraId] = preset;
+    const settled = sleep(this.settings.settleMs ?? this.settleMs);
+    const done = this.devices.recall(cameraId, preset).then(r => (r?.completed ? undefined : settled), err => {
+      this.#log(`recall on ${cameraId} failed: ${err.message}`, { error: true });
+      if (this.cameraPreset[cameraId] === preset) delete this.cameraPreset[cameraId];
+    });
+    this.arrival[cameraId] = Promise.race([done, settled]);
   }
 
   /** Room minus cameras taken out of the automation (DEC-015). */
@@ -118,27 +142,24 @@ export class Director extends EventEmitter {
     const cuts = manual || this.devices.switcherAutomation;
     const steps = plan({ target, onAirCamera: this.onAirCamera, cameraPreset: this.cameraPreset, overview: room.overview, strategy: room.director.strategy, cuts });
     this.#log(`${reason}: ${target.overview ? 'overview' : `seat ${target.seatId}`} → ${target.cameraId} preset ${target.preset}${cuts ? '' : ' (switcher automation off: no cut)'}`, { steps: steps.map(s => s.step) });
-    const completed = {};
+    const safe = room.director.strategy === 'safe';
     for (const s of steps) {
       if (this.rerun) return; // a newer target arrived: re-plan from the current state
       try {
-        if (s.step === 'recall') {
-          const r = await this.devices.recall(s.cameraId, s.preset);
-          this.cameraPreset[s.cameraId] = s.preset;
-          completed[s.cameraId] = Boolean(r?.completed);
-        } else if (s.step === 'wait') {
-          if (!completed[s.cameraId]) await sleep(this.settings.settleMs ?? this.settleMs); // camera can't report arrival
-        } else if (s.step === 'cut') {
+        if (s.step === 'recall') this.#recall(s.cameraId, s.preset);
+        else if (s.step === 'wait') await this.arrival[s.cameraId];
+        else if (s.step === 'cut') {
+          if (safe) await this.arrival[s.cameraId]; // a pre-positioned camera may still be moving
+          if (this.rerun) return;
           const input = this.devices.cameraConfig(s.cameraId).switcherInput;
           if (input === null || input === undefined) { this.#log(`no switcher input for ${s.cameraId}; cut skipped`); continue; }
           if (!this.devices.switcherDriver) { this.#log('switcher not connected; cut skipped'); continue; }
           await this.devices.cut(input);
           this.onAirCamera = s.cameraId;
-          this.lastCutAt = Date.now();
+          this.lastCutAt = s.cameraId === target.cameraId && !target.overview ? Date.now() : 0; // minShotMs holds the speaker shot on air only
         }
       } catch (err) {
         this.#log(`${s.step} on ${s.cameraId} failed: ${err.message}`, { error: true });
-        if (s.step === 'recall') delete this.cameraPreset[s.cameraId];
       }
     }
   }
@@ -147,6 +168,7 @@ export class Director extends EventEmitter {
   reset() {
     clearTimeout(this.timer);
     this.cameraPreset = {};
+    this.arrival = {};
     this.target = null;
     this.onAirCamera = null;
     this.#publish();

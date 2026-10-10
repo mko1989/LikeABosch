@@ -78,7 +78,7 @@ mock/
   cameras/                VISCA (UDP/TCP, Sony/raw), Panasonic AW HTTP, ONVIF SOAP protocol mocks
 web/
   index.html, css/app.css app shell + design tokens
-  js/                     main, api, store(+store-core), router (areas Room / Meeting / Settings, DEC-014), dom (DEC-009),
+  js/                     main, api, store(+store-core, live-stream: self-healing SSE, WO-109), router (areas Room / Meeting / Settings, DEC-014), dom (DEC-009),
                           interp.js (interpreter desk semantics), arrange.js (seat shapes, WO-055), labels.js (name layout on the plan, WO-083),
                           participants-io.js (Excel import/export dialog, WO-085), wap.js (wireless config helpers),
                           companion.js (inspector section + button picker, WO-099), camera-aim.js (camera turn + colours, WO-103),
@@ -110,7 +110,8 @@ broadcasts `{ topic: "votingState", data }`. The event → Get-operation table i
 
 ## Camera automation flow (DEC-012)
 `domain.discussion` (mic on/off) → `director` (last activated / priority → seat shot or overview; strategy safe/live;
-delay, minimum shot, travel time) → `devices` (camera driver `recallPreset`, then switcher `programCut`) → topics
+delay, minimum shot, travel time; DEC-031: overview at once, off-air cameras pre-positioned during the delay, travel wait
+= camera's arrival reply or `settleMs`, whichever first) → `devices` (camera driver `recallPreset`, then switcher `programCut`) → topics
 `devices.*` / `director` → Room view (tally, current shot). Configuration: `data/devices.json`, `data/room.json`.
 
 ## Companion triggers (DEC-027)

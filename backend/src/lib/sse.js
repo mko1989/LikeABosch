@@ -2,9 +2,10 @@
 
 /**
  * @param {object} [options]
- * @param {number} [options.heartbeatMs]  comment line to keep proxies/browsers from timing out
+ * @param {number} [options.heartbeatMs]  `ping` event interval: keeps proxies from timing out and lets the browser notice a
+ *                                        dead stream (comment lines are invisible to page scripts; WO-109)
  */
-export function createSseHub({ heartbeatMs = 25_000 } = {}) {
+export function createSseHub({ heartbeatMs = 15_000 } = {}) {
   /** @type {Set<import('express').Response>} */
   const clients = new Set();
   let nextId = 1;
@@ -14,7 +15,7 @@ export function createSseHub({ heartbeatMs = 25_000 } = {}) {
   };
 
   const heartbeat = setInterval(() => {
-    for (const res of clients) res.write(': ping\n\n');
+    for (const res of clients) res.write('event: ping\ndata: {}\n\n');
   }, heartbeatMs);
   heartbeat.unref();
 
