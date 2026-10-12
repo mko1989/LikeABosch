@@ -11,6 +11,7 @@ const WIRELESS_MODES = ['For / Against', 'For / Against / Abstain', 'For / Again
 export default {
   id: 'voting',
   title: 'Voting',
+  feature: 'voting', // not on a CCS 1000 D (DEC-032)
   topics: ['domain.voting'],
   mount(el, { store, api }) {
     const activeBox = h('div');

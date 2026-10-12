@@ -1,0 +1,22 @@
+{
+	"name": "bosch-discussion-system",
+	"version": "1.0.0",
+	"description": "Companion module for Bosch discussion systems: DICENTIS, DICENTIS Wireless, CCS 1000 D and DCN NG meeting data, over their network APIs",
+	"type": "module",
+	"main": "main.js",
+	"scripts": {
+		"test": "node --test --test-timeout=60000 \"test/**/*.test.js\"",
+		"package": "companion-module-build"
+	},
+	"keywords": ["bosch", "dicentis", "ccs-1000", "dcn", "conference", "discussion"],
+	"author": "Marcin Wardecki",
+	"license": "MIT",
+	"engines": { "node": ">=22.12.0" },
+	"dependencies": {
+		"@companion-module/base": "~1.12.1",
+		"ws": "^8.18.3"
+	},
+	"devDependencies": {
+		"@companion-module/tools": "^2.2.2"
+	}
+}

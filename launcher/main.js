@@ -7,6 +7,7 @@ import { createSettingsStore, backendEnv } from './lib/settings-store.js';
 import { ServerProcess } from './lib/server-process.js';
 import { BridgeProcess } from './lib/bridge-process.js';
 import { neededBridges, resolveExe, bridgeArgs } from './lib/bridges.js';
+import { detectBoschApis } from './lib/bosch-apis.js';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const repoRoot = join(here, '..');
@@ -47,14 +48,30 @@ function setBridgeState(st) {
   send('bridges:state', [...bridgeStates.values()]);
 }
 
+/** Installed Bosch software (DEC-037), found at app start and before each server start. */
+let found = { dicentis: null, dcn: null };
+/** Command line of each running bridge, so an unchanged one keeps running. */
+const bridgeCommands = new Map();
+
 /**
- * Start the bridges these settings need on this PC (Windows only, DEC-022). A bridge that cannot start is reported;
- * the backend starts anyway and keeps trying to reach it.
+ * Start the bridges these settings need on this PC (Windows only, DEC-022), plus the ones whose Bosch software is
+ * installed (`autoBridges`, DEC-037). Running bridges with the same command line keep running. A bridge that cannot
+ * start is reported; the backend starts anyway and keeps trying to reach it. Returns the bridges wanted.
  */
 async function startBridges(settings, token) {
-  await stopBridges();
-  bridgeStates.clear();
-  for (const b of neededBridges(settings, { bridgeToken: token })) {
+  found = detectBoschApis({ configured: { dicentis: settings.dcnmDllDir, dcn: settings.dcnBridgeDllDir } });
+  send('bosch:found', found);
+  const wanted = neededBridges(settings, { bridgeToken: token, found });
+  const key = b => JSON.stringify([b.exe, bridgeArgs(b)]);
+  for (const [name, p] of [...bridges]) {
+    const w = wanted.find(b => b.name === name);
+    if (w && bridgeCommands.get(name) === key(w) && p.state !== 'stopped' && p.state !== 'failed') continue;
+    await p.stop();
+    bridges.delete(name);
+    bridgeCommands.delete(name);
+  }
+  for (const name of [...bridgeStates.keys()]) if (!wanted.some(b => b.name === name)) bridgeStates.delete(name);
+  for (const b of wanted.filter(x => !bridges.has(x.name))) {
     const exe = resolveExe(b, { repoRoot, launcherDir: here, resourcesPath: process.resourcesPath });
     if (!exe) {
       const error = `${b.name}.exe not found: build it (dotnet build bridge/${b.dir} -c Release) or set its path under "Bridges"`;
@@ -63,25 +80,30 @@ async function startBridges(settings, token) {
       continue;
     }
     const p = new BridgeProcess({ name: b.name, command: exe, args: bridgeArgs(b), cwd: dirname(exe) });
-    p.on('state', setBridgeState);
+    p.on('state', st => setBridgeState({ ...st, auto: Boolean(b.auto), dllDir: b.dllDir }));
     p.on('log', line => send('server:log', line));
     bridges.set(b.name, p);
-    send('server:log', `[${b.name}] starting ${exe} on 127.0.0.1:${b.port}`);
+    bridgeCommands.set(b.name, key(b));
+    send('server:log', `[${b.name}] starting ${exe} on 127.0.0.1:${b.port}${b.auto ? ` (found ${b.dllDir})` : ''}`);
     try { await p.start(); } catch (err) { send('server:log', `[${b.name}] ${err.message}`); }
   }
+  return wanted;
 }
 
 async function stopBridges() {
   await Promise.all([...bridges.values()].map(b => b.stop()));
   bridges.clear();
+  bridgeCommands.clear();
 }
 
 async function startServer() {
   const settings = await store.load();
   const token = await store.loadBridgeToken();
-  if (!smokeTest && !settings.simulate) await startBridges(settings, token); // a simulation needs no Windows bridge (WO-098)
+  // A simulation needs no Windows bridge (WO-098).
+  const wanted = !smokeTest && !settings.simulate ? await startBridges(settings, token) : [];
   // No DATA_DIR: the backend uses the same per-user data folder as a direct start (DEC-016).
-  const env = backendEnv(settings, await store.loadPassword(), undefined, token);
+  const dcnmAuto = wanted.some(b => b.name === 'dicentis-bridge' && b.auto); // DICENTIS software found here (DEC-037)
+  const env = backendEnv(settings, await store.loadPassword(), undefined, token, { dcnmAuto });
   if (smokeTest) Object.assign(env, { PORT: process.env.LAUNCHER_SMOKE_PORT ?? '39880', DICENTIS_AUTOCONNECT: 'false' });
   await server.start(env);
   pollStatus();
@@ -98,7 +120,9 @@ function registerIpc() {
   ipcMain.handle('settings:get', () => store.describe());
   ipcMain.handle('settings:save', (_e, { settings, password, bridgeToken }) => store.save(settings, password, bridgeToken));
   ipcMain.handle('server:start', () => startServer());
-  ipcMain.handle('server:stop', async () => { clearInterval(statusTimer); await server.stop(); await stopBridges(); });
+  // The bridges keep running (DEC-037: they start with the app); the next server start reuses unchanged ones.
+  ipcMain.handle('server:stop', async () => { clearInterval(statusTimer); await server.stop(); });
+  ipcMain.handle('bosch:found', () => found);
   ipcMain.handle('bridges:status', () => [...bridgeStates.values()]);
   ipcMain.handle('server:status', () => ({ state: server.state, error: server.error, url: server.url, log: server.logLines }));
   ipcMain.handle('gui:launch', () => openGui());
@@ -151,10 +175,15 @@ async function runSmokeTest() {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   registerIpc();
   createLauncherWindow();
-  if (smokeTest) runSmokeTest();
+  if (smokeTest) return runSmokeTest();
+  // DEC-037: on Windows, bridges whose Bosch software is installed start with the app.
+  const settings = await store.load();
+  if (process.platform === 'win32' && !settings.simulate) {
+    await startBridges(settings, await store.loadBridgeToken()).catch(err => send('server:log', `[bridges] ${err.message}`));
+  }
 });
 
 app.on('window-all-closed', () => app.quit());

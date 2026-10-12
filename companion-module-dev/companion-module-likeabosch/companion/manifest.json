@@ -1,0 +1,26 @@
+{
+	"id": "likeabosch",
+	"name": "LikeABosch",
+	"shortname": "likeabosch",
+	"description": "Bosch discussion systems through LikeABosch: seat microphones, cameras and the Windows bridge APIs",
+	"version": "1.0.0",
+	"license": "MIT",
+	"repository": "https://github.com/bitfocus/companion-module-likeabosch.git",
+	"bugs": "https://github.com/bitfocus/companion-module-likeabosch/issues",
+	"maintainers": [
+		{
+			"name": "Marcin Wardecki",
+			"email": "m.wardecki89@gmail.com"
+		}
+	],
+	"legacyIds": [],
+	"runtime": {
+		"type": "node22",
+		"api": "nodejs-ipc",
+		"apiVersion": "0.0.0",
+		"entrypoint": "../main.js"
+	},
+	"manufacturer": "LikeABosch",
+	"products": ["LikeABosch"],
+	"keywords": ["bosch", "dicentis", "dcn", "ccs", "conference", "microphone", "camera"]
+}

@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 const SPEC_FILE = fileURLToPath(new URL('../../../docs/protocol/wireless-rest/swagger.json', import.meta.url));
 /** The WAP web UI's endpoints LikeABosch uses (DEC-024), same Swagger 2.0 shape; operations get `undocumented: true`. */
 const EXTRA_FILE = fileURLToPath(new URL('../../../docs/protocol/wireless-rest/undocumented.json', import.meta.url));
+/** CCS 1000 D (CCSD-CU) REST API v1.8: the WAP dialect without participants/voting, plus microphone sensitivity (DEC-032). */
+export const CCS_SPEC_FILE = fileURLToPath(new URL('../../../docs/protocol/ccs1000-rest/swagger.json', import.meta.url));
 
 /**
  * @typedef {object} WirelessOperation

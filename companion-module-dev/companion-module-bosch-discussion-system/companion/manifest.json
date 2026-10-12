@@ -1,0 +1,26 @@
+{
+	"id": "bosch-discussion-system",
+	"name": "Bosch Discussion Systems",
+	"shortname": "bosch-discussion",
+	"description": "DICENTIS, DICENTIS Wireless, CCS 1000 D and DCN NG meeting data over their network APIs",
+	"version": "1.0.0",
+	"license": "MIT",
+	"repository": "https://github.com/bitfocus/companion-module-bosch-discussion-system.git",
+	"bugs": "https://github.com/bitfocus/companion-module-bosch-discussion-system/issues",
+	"maintainers": [
+		{
+			"name": "Marcin Wardecki",
+			"email": "m.wardecki89@gmail.com"
+		}
+	],
+	"legacyIds": [],
+	"runtime": {
+		"type": "node22",
+		"api": "nodejs-ipc",
+		"apiVersion": "0.0.0",
+		"entrypoint": "../main.js"
+	},
+	"manufacturer": "Bosch",
+	"products": ["DICENTIS", "DICENTIS Wireless", "CCS 1000 D", "DCN Next Generation"],
+	"keywords": ["conference", "discussion", "microphone", "dicentis", "ccs", "dcn"]
+}

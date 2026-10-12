@@ -1,5 +1,5 @@
 // Headless browser check of the web UI, run inside Electron by scripts/ui-check.mjs (DEC-009).
-// Args: <baseUrl> <outDir> <theme light|dark> <system wired|wireless|dcn> <route...>
+// Args: <baseUrl> <outDir> <theme light|dark> <system wired|wireless|ccs1000|dcn|dcn-smd> <route...>
 // Prints JSON lines: {"type":"console",...}, {"type":"route",...}, {"type":"live",...}, {"type":"done",...}
 const { app, BrowserWindow, nativeTheme } = require('electron');
 const { writeFileSync } = require('node:fs');
@@ -483,8 +483,35 @@ app.whenReady().then(async () => {
         ok = ok && await waitFor(clickButton('Save switcher'));
         ok = ok && await waitFor("document.querySelectorAll('.card .pill.loggedIn').length >= 3");
         // WO-090: ATEM autodiscovery (no ATEM on the test machine's network: the "none found" hint appears)
+        await js(setField('select[aria-label="Switcher type"]', 'atem')); // the search belongs to the ATEM form
         ok = ok && await waitFor(clickButton('Find ATEM on the network'));
-        ok = ok && ((await waitFor(text('No ATEM answered'), 8000)) || (print({ type: 'console', level: 'check', message: 'ATEM discovery: no result' }), false));
+        ok = ok && ((await waitFor(text('No ATEM answered'), 8000)) || (print({ type: 'console', level: 'check', message: `ATEM discovery: no result; type=${await js("document.querySelector('select[aria-label=\"Switcher type\"]')?.value")} text=${String(await js("[...document.querySelectorAll('.card')].find(c => c.textContent.includes('Video switcher'))?.textContent")).slice(0, 300)}` }), false));
+        // WO-112 / DEC-033: Kramer MV-6 and tvONE CORIO through the form, against their TCP mocks, then back to the simulated one.
+        const swStatus = "fetch('/api/devices/switcher').then(r => r.json()).then(b => b.data)";
+        const swStep = async (label, code) => { if (ok) ok = (await waitFor(code, 6000)) || (print({ type: 'console', level: 'check', message: `switchers: "${label}" not reached` }), false); };
+        const fill = (name, value) => js(`(() => { const e = document.querySelector('.card input[name=${name}]'); e.value = ${JSON.stringify(value)}; return true; })()`);
+        if (process.env.UI_CHECK_KRAMER_PORT) {
+          await js(setField('select[aria-label="Switcher type"]', 'kramer-mv6'));
+          await swStep('kramer form', "document.querySelector('.card input[name=window]') !== null");
+          await fill('host', '127.0.0.1'); await fill('port', process.env.UI_CHECK_KRAMER_PORT);
+          await js(clickButton('Save switcher'));
+          await swStep('kramer connected', `${swStatus}.then(d => d.driver === 'kramer-mv6' && d.status.connected && d.status.model === 'MV-6')`);
+          await swStep('kramer shown', text('Inputs 1–6'));
+          await sleep(200);
+          await shot('switcher-kramer');
+        }
+        if (process.env.UI_CHECK_TVONE_PORT) {
+          await js(setField('select[aria-label="Switcher type"]', 'tvone-corio'));
+          await swStep('tvone form', "document.querySelector('.card input[name=inputs]') !== null");
+          await fill('host', '127.0.0.1'); await fill('port', process.env.UI_CHECK_TVONE_PORT); await fill('previewWindow', 'Window2');
+          await js(clickButton('Save switcher'));
+          await swStep('tvone connected', `${swStatus}.then(d => d.driver === 'tvone-corio' && d.status.connected && d.passwordSet && d.password === undefined)`);
+          await sleep(200);
+          await shot('switcher-tvone');
+        }
+        await js(setField('select[aria-label="Switcher type"]', 'mock'));
+        await js(clickButton('Save switcher'));
+        await swStep('back to the simulated switcher', `${swStatus}.then(d => d.driver === 'mock' && d.status.connected)`);
         // WO-056 / DEC-015: per-device automation switches (camera row + switcher card), saved immediately.
         const camAuto = "fetch('/api/devices/cameras').then(r => r.json()).then(b => b.data.find(c => c.name === 'Cam A').automation)";
         ok = ok && await waitFor("(() => { const i = document.querySelector('input[aria-label=\"Cam A: camera automation\"]'); if (!i) return false; i.click(); return true; })()");
@@ -873,6 +900,25 @@ app.whenReady().then(async () => {
         ok = ok && await waitFor("document.body.innerText.includes('Participant access denied: Incorrect seat')");
         await sleep(300);
         await shot('participants');
+        // WO-106 / DEC-034: add, edit, remove through the full DICENTIS API (the linked mock dicentis-bridge runs here).
+        await js("(() => { const c = document.querySelector('.toolbar input[type=checkbox]'); c.checked = false; c.dispatchEvent(new Event('change')); })()");
+        const step = async (label, code) => { if (ok) ok = (await waitFor(code, 6000)) || (print({ type: 'console', level: 'check', message: `participants edit: "${label}" not reached` }), false); };
+        const row = name => `[...document.querySelectorAll('table.data tbody tr')].find(r => r.textContent.includes('${name}'))`;
+        await step('add button', clickButton('Add participant'));
+        await step('form', "document.querySelector('.participant-form input[name=name]') !== null");
+        await js("(() => { const f = document.querySelector('.participant-form'); f.elements.name.value = 'Zoe Tester'; f.elements.group.value = 'Press'; f.elements.seatId.value = 'seat-17'; return true; })()");
+        await js(clickButton('Add participant', '.participant-form'));
+        await step('added', `(() => { const r = ${row('Zoe Tester')}; return r && r.textContent.includes('Press') && r.textContent.includes('Seat 17'); })()`);
+        await sleep(200);
+        await shot('participants-added');
+        await step('edit', `(() => { const r = ${row('Zoe Tester')}; const b = r && [...r.querySelectorAll('button')].find(x => x.textContent === 'Edit'); if (b) { b.click(); return true; } return false; })()`);
+        await step('edit form', "document.querySelector('.participant-form')?.elements.group.value === 'Press'");
+        await js("(() => { const f = document.querySelector('.participant-form'); f.elements.group.value = 'Media'; return true; })()");
+        await js(clickButton('Save', '.participant-form'));
+        await step('edited', `(() => { const r = ${row('Zoe Tester')}; return r && r.textContent.includes('Media'); })()`);
+        await step('remove', `(() => { const r = ${row('Zoe Tester')}; const b = r && [...r.querySelectorAll('button')].find(x => x.textContent === 'Remove'); if (b) { b.click(); return true; } return false; })()`);
+        await step('confirm', "(() => { const b = document.querySelector('dialog[open] button[value=ok]'); if (b) { b.click(); return true; } return false; })()");
+        await step('removed', `!${row('Zoe Tester')} && document.querySelectorAll('table.data tbody tr').length === 16`);
         return ok;
       },
       async interpretation() {
@@ -990,6 +1036,37 @@ app.whenReady().then(async () => {
         return ok;
       },
     };
+    // CCS 1000 D (WO-111, DEC-032): wireless dialect without participants / voting, plus microphone sensitivity.
+    const ccsScenarios = {
+      async discussion() {
+        const nav = await js("document.getElementById('nav').textContent");
+        const tabs = await js("document.getElementById('tabs').textContent");
+        let ok = !/Voting|Participants|Seating|Discussion settings|Seat displays|Meetings/.test(nav) && !/Meeting/.test(tabs);
+        if (!ok) print({ type: 'console', level: 'check', message: `ccs1000: unexpected views: nav="${nav}" tabs="${tabs}"` });
+        await js("location.hash = '#/discussion'");
+        ok = ok && await waitFor("document.querySelectorAll('.seat').length === 20");
+        ok = ok && await js("document.querySelector('.seat-diag') === null"); // no battery data on a CCS 1000 D
+        ok = ok && await waitFor(seatButton('Seat 3', 'Add'));
+        ok = ok && await waitFor(`${listText(0)}.includes('Seat 3')`);
+        ok = ok && await waitFor(seatButton('Seat 7', 'Request'));
+        ok = ok && await waitFor(`${listText(1)}.includes('Seat 7')`);
+        await shot('discussion');
+        await js("fetch('/api/domain/discussion', { method: 'DELETE' })");
+        return ok;
+      },
+      async 'ccs-microphones'() {
+        await js("location.hash = '#/settings/ccs-microphones'");
+        const get = "fetch('/api/ccs1000/seats/microphonesensitivity/2').then(r => r.json()).then(b => b.data.sensitivity)";
+        let ok = await waitFor("[...document.querySelectorAll('tr[data-seat] output')].filter(o => o.textContent === '0 dB').length >= 18", 8000);
+        ok = ok && await js(setField("tr[data-seat='2'] input[type=range]", '10'));
+        ok = ok && await waitFor(`${get}.then(v => v === 10)`);
+        ok = ok && await waitFor("document.querySelector(\"tr[data-seat='2'] output\").textContent === '+4 dB'");
+        await shot('ccs-microphones');
+        await js("fetch('/api/ccs1000/seats/resetmicrophonesensitivities', { method: 'POST' })");
+        return ok;
+      },
+    };
+
     const dcnScenarios = {
       async discussion() {
         const nav = await js("document.getElementById('nav').textContent");
@@ -1084,7 +1161,7 @@ app.whenReady().then(async () => {
       },
     };
     // `connection` last: it switches to a simulated system and back, adding projects the other scenarios don't expect.
-    for (const [name, run] of Object.entries(system === 'wireless' ? wirelessScenarios : system === 'dcn' ? dcnScenarios : system === 'dcn-smd' ? smdScenarios : scenarios).sort(([a], [b]) => (a === 'connection') - (b === 'connection'))) {
+    for (const [name, run] of Object.entries(system === 'wireless' ? wirelessScenarios : system === 'ccs1000' ? ccsScenarios : system === 'dcn' ? dcnScenarios : system === 'dcn-smd' ? smdScenarios : scenarios).sort(([a], [b]) => (a === 'connection') - (b === 'connection'))) {
       if (!routes.includes(name)) continue;
       const ok = await run();
       print({ type: 'scenario', name, ok });

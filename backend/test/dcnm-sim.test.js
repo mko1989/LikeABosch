@@ -1,5 +1,6 @@
 // WO-101 (DEC-029 §4): the mock dicentis-bridge linked to the Conference Protocol mock, as a simulated wired system uses
 // it: DCNM changes show up in the wired mock's state (one DICENTIS database), presentation works both ways.
+import { toConstructor } from '../src/dcnm/shape.js';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { DcnmClient } from '../src/dcnm/client.js';
@@ -46,7 +47,7 @@ test('seats, meeting and languages come from the wired mock', async () => {
 
 test('a new language added to the meeting appears in the Conference Protocol languages; desks follow', async () => {
   const meetingId = wired.state.activeMeetingId;
-  const id = await call('ConfigLanguage', 'CreateLanguageAsync', { languageInfo: { Abbreviation: 'SV', ShortAbbreviation: 'sv', EnLabel: 'Swedish', OrgLabel: 'Svenska' } });
+  const id = await call('ConfigLanguage', 'CreateLanguageAsync', { languageInfo: { Abbreviation: 'SV', ShortAbbreviation: 'sv', EnLabel: 'Swedish', OrgLabel: 'Svenska', UserDefined: true, OrderId: 0 } });
   assert.ok(typeof id === 'string' && id.length > 0);
   fired.length = 0;
   await call('ConfigInterpretation', 'CreateMeetingLanguageAsync', { meetingLanguageInfo: { MeetingId: meetingId, LanguageId: id } });
@@ -55,7 +56,9 @@ test('a new language added to the meeting appears in the Conference Protocol lan
   assert.equal(wl.at(-1).index, 5);
   assert.ok(fired.includes('interpretationLanguagesChanged'));
   // assign it as output B of a desk
-  await call('ConfigInterpretation', 'UpdateMeetingDeskInfoAsync', { meetingDeskInfo: { MeetingId: meetingId, SeatId: 'seat-booth1-desk1', OutBLanguageId: id, OutputLanguageSetB: ['lang-002', id] } });
+  // A whole DcnmMeetingDeskInfo (the real bridge builds it through a constructor, WO-115): read, change, send back.
+  const desk = (await call('ConfigInterpretation', 'RetrieveMeetingDesksAsync', { meetingId })).find(x => x.SeatId === 'seat-booth1-desk1');
+  await call('ConfigInterpretation', 'UpdateMeetingDeskInfoAsync', { meetingDeskInfo: toConstructor('DcnmMeetingDeskInfo', { ...desk, OutBLanguageId: id, OutputLanguageSetB: ['lang-002', id] }) });
   const d = wired.state.interpretation.seats.find(x => x.seatId === 'seat-booth1-desk1');
   assert.equal(d.bLanguageId, id);
   assert.deepEqual(d.bLanguageList, ['lang-002', id]);

@@ -129,12 +129,13 @@ export default {
       ];
     }, ['domain.seats', 'domain.participants']);
 
-    const roomTopic = store.system === 'wireless' ? 'wirelessSystemInfo' : 'roomName';
-    const room = card(store, store.system === 'wireless' ? 'Access point' : 'Room', [roomTopic, 'domain.seats'], () => {
+    const rest = store.system === 'wireless' || store.system === 'ccs1000'; // REST device: WAP or CCSD-CU (DEC-032)
+    const roomTopic = rest ? 'wirelessSystemInfo' : 'roomName';
+    const room = card(store, rest ? (store.system === 'ccs1000' ? 'Control unit' : 'Access point') : 'Room', [roomTopic, 'domain.seats'], () => {
       const info = store.topic('wirelessSystemInfo');
       return [
-        h('p', { class: 'headline' }, store.system === 'wireless' ? info?.Hostname || info?.['System Type'] || '—' : store.topic('roomName')?.roomName || '—'),
-        store.system === 'wireless'
+        h('p', { class: 'headline' }, rest ? info?.Hostname || info?.['System Type'] || '—' : store.topic('roomName')?.roomName || '—'),
+        rest
           ? kv('Firmware', info?.Versions?.Firmware ?? '—')
           : kv('Contact', store.topic('roomContactEmail')?.roomContactEmail || '—'),
         kv('Seats', String(store.topic('domain.seats')?.length ?? '—')),

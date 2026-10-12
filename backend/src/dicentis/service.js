@@ -8,10 +8,13 @@
 //   dicentis.languages        system languages (WO-102)
 //   dicentis.meetingLanguages { meetingId, languages, can… } (WO-102)
 //   dicentis.desks            interpreter desk outputs (WO-102)
+// Participant editing (WO-106, DEC-034) has no topic of its own: the Conference Protocol's participant topics show the
+// result (both APIs see one DICENTIS database).
 import { createLogger } from '../lib/logger.js';
 import { AppError } from '../lib/errors.js';
 import { audioFromDcnm, seatAudioFromDcnm, gainSetting, equalizerSetting, selectionSetting, seatDanteUpdate } from './audio.js';
 import { languagesFromDcnm, meetingLanguagesFromDcnm, desksFromDcnm, languageInfo, meetingLanguageUpdate, orderNumbers, deskUpdate } from './languages.js';
+import { EMPTY_GUID, fullUserInfo, newParticipant, newPassword, newUserInfo, personUpdate, splitName, userNameFor } from './participants.js';
 
 export const DICENTIS_TOPICS = ['dicentis.audio', 'dicentis.vu', 'dicentis.seatAudio', 'dicentis.languages', 'dicentis.meetingLanguages', 'dicentis.desks'];
 const VU_LEASE_MS = 30_000;
@@ -72,6 +75,7 @@ export class DicentisFeatures {
     return {
       audio: up && Boolean(room.CanControlSystemAudio || room.CanConfigureSystemAudio),
       languages: up && Boolean(interp.CanConfigureInterpretationLanguages || lang.CanConfigureLanguages),
+      participants: up && Boolean(this.#props('PrepareParticipant2').CanPrepareParticipants && this.#props('RegisterPerson').CanRegisterPerson),
     };
   }
 
@@ -285,6 +289,111 @@ export class DicentisFeatures {
     const r = await this.#call('ConfigInterpretation', 'UpdateMeetingDeskInfoAsync', { meetingDeskInfo: info });
     await this.#loadMeeting();
     return r;
+  }
+
+  // ------------------------------------------------------------------ actions: participants (WO-106, DEC-034)
+  /** Participants of the active meeting: [{ ParticipantInfo, UserInfo }]. */
+  async #participants() {
+    const meetingId = this.#meetingFor('participants');
+    return (await this.#call('PrepareParticipant2', 'RetrieveParticipantsForMeetingAsync', { meetingId })) ?? [];
+  }
+  #meetingFor(what) {
+    if (!this.meetingId) throw new AppError('NOT_SUPPORTED', `No active meeting: ${what} belong to the active meeting (activate one first)`);
+    return this.meetingId;
+  }
+  #seat(seatId) {
+    const seat = this.raw.seats.find(x => x.Id === seatId);
+    if (!seat || seat.SeatType !== 'ParticipantSeat') throw new AppError('VALIDATION', `Unknown seat '${seatId}'`);
+    return seat;
+  }
+  #participant(list, id) {
+    const p = list.find(x => x.ParticipantInfo?.Id === id);
+    if (!p) throw new AppError('VALIDATION', `Unknown participant '${id}' (not in the active meeting)`);
+    return p;
+  }
+  /** Give a seat to a participant (or nobody), taking it from whoever holds it first. */
+  async #assign(list, seatId, participantId) {
+    if (seatId !== null) this.#seat(seatId);
+    const holders = seatId === null ? [] : list.filter(x => x.ParticipantInfo.AssignedAt === seatId && x.ParticipantInfo.Id !== participantId);
+    const release = [...holders.map(x => x.ParticipantInfo.Id), ...(seatId === null && participantId ? [participantId] : [])];
+    if (release.length) await this.#call('PrepareParticipant2', 'UnassignParticipantsToSeatAsync', { participantIds: release });
+    if (seatId !== null && participantId) {
+      await this.#call('PrepareParticipant2', 'AssignParticipantsToSeatsAsync', { participantInfos: [{ ParticipantId: participantId, SeatId: seatId }] });
+    }
+  }
+
+  /**
+   * The participant user group new persons must be in (the API refuses others): MeetingConstants.PARTICIPANTGROUPID
+   * from the bridge, else the group of the meeting's existing participants.
+   */
+  async #participantGroup() {
+    const constant = this.client?.constants?.['MeetingConstants.PARTICIPANTGROUPID'];
+    if (constant && constant !== EMPTY_GUID) return constant;
+    const counts = new Map();
+    for (const p of await this.#participants()) {
+      const g = p.UserInfo?.UserGroupId;
+      if (g && g !== EMPTY_GUID) counts.set(g, (counts.get(g) ?? 0) + 1);
+    }
+    const best = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (!best) throw new AppError('NOT_SUPPORTED', 'Cannot find the DICENTIS participant user group: add one participant in the DICENTIS Meeting Application first');
+    return best;
+  }
+
+  /** New person + participant of the active meeting (+ seat). Returns { id } (the participant id). */
+  async createParticipant({ name, seatId = null, group }) {
+    const meetingId = this.#meetingFor('participants');
+    if (seatId !== null) this.#seat(seatId);
+    const persons = (await this.#call('RegisterPerson', 'GetPersonAsync')) ?? [];
+    const user = newUserInfo({ ...splitName(name), Group: String(group ?? '').trim() }, await this.#participantGroup());
+    const created = await this.#call('RegisterPerson', 'CreatePersonsAsync', {
+      userAccountInfos: [{ User: user, UserName: userNameFor(name, persons.map(p => p.UserName)), Password: newPassword(), PinCode: '' }],
+    });
+    const userId = created?.[0]?.UserId ?? created?.[0]?.User?.UserId;
+    if (!userId) throw new AppError('UPSTREAM_ERROR', `DICENTIS did not create the person "${name}"`);
+    const registered = await this.#call('PrepareParticipant2', 'RegisterParticipantsAsync', { participants: [newParticipant(meetingId, userId)] });
+    const id = registered?.[0]?.ParticipantInfo?.Id;
+    if (!id) {
+      await this.#call('RegisterPerson', 'DeletePersonAsync', { userIds: [userId] }).catch(() => {});
+      throw new AppError('UPSTREAM_ERROR', `DICENTIS did not add "${name}" to the meeting`);
+    }
+    if (seatId !== null) await this.#assign(await this.#participants(), seatId, id);
+    return { id };
+  }
+
+  /** Change name / group (the person) and / or the seat (null = none) of a participant of the active meeting. */
+  async updateParticipant(id, { name, group, seatId }) {
+    const list = await this.#participants();
+    const p = this.#participant(list, id);
+    if (name !== undefined || group !== undefined) {
+      const persons = (await this.#call('RegisterPerson', 'GetPersonAsync')) ?? [];
+      const person = persons.find(x => x.UserId === p.ParticipantInfo.UserId);
+      const userInfo = personUpdate(person?.User ?? p.UserInfo ?? {}, { name, group });
+      // (user, userName, password, pinCode): the stored password / PIN as GetPersonAsync gave them (not verified on a
+      // real system whether it returns them or expects '' for "unchanged", WO-106 handoff).
+      await this.#call('RegisterPerson', 'UpdatePersonAsync', {
+        userAccountInfos: [{ User: fullUserInfo(userInfo, p.ParticipantInfo.UserId), UserName: person?.UserName ?? p.ParticipantInfo.UserName, Password: person?.Password ?? '', PinCode: person?.PinCode ?? '' }],
+      });
+    }
+    if (seatId !== undefined && seatId !== (p.ParticipantInfo.AssignedAt === EMPTY_GUID ? null : p.ParticipantInfo.AssignedAt)) await this.#assign(list, seatId, id);
+  }
+
+  /** Remove a participant from the active meeting; the person stays in the DICENTIS database. */
+  async deleteParticipant(id) {
+    this.#participant(await this.#participants(), id);
+    await this.#call('PrepareParticipant2', 'DeleteParticipantsAsync', { participantIds: [id] });
+  }
+
+  /** Seat → participant (null = free the seat). */
+  async assignSeat(seatId, participantId) {
+    const list = await this.#participants();
+    if (participantId === null) {
+      this.#seat(seatId);
+      const holders = list.filter(x => x.ParticipantInfo.AssignedAt === seatId).map(x => x.ParticipantInfo.Id);
+      if (holders.length) await this.#call('PrepareParticipant2', 'UnassignParticipantsToSeatAsync', { participantIds: holders });
+      return;
+    }
+    this.#participant(list, participantId);
+    await this.#assign(list, seatId, participantId);
   }
 
   close() { clearTimeout(this.vu.timer); }

@@ -26,6 +26,7 @@ import wapDiscussion from './views/wap-discussion.js';
 import wapAudio from './views/wap-audio.js';
 import wapSeats from './views/wap-seats.js';
 import wapDisplays from './views/wap-displays.js';
+import ccsMicrophones from './views/ccs-microphones.js';
 
 /** Placeholder entries for views built in later WOs. */
 const soon = (id, title, wo, text) => ({
@@ -56,6 +57,7 @@ const areas = [
       wapAudio,
       wapSeats,
       wapDisplays,
+      ccsMicrophones,
       system,
       dcnView,
       dcnStream,

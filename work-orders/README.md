@@ -123,11 +123,21 @@ Statuses: `draft` · `ready` · `in-progress` · `blocked` · `review` · `done`
 | [WO-103](WO-103-room-camera-aim-and-coverage.md) | Room plan: cameras turn toward the seat they show; seats tinted by their camera | 5 | review | 035, 039, 054, 071 | 2026-10-09 |
 | [WO-104](WO-104-room-widgets.md) | Room widgets: voting, audio, presentation (DEC-030) | 3 | review | 021, 024, 049, 081 | 2026-10-08 |
 | [WO-105](WO-105-presentation-into-dicentis.md) | Research: how a presentation gets into DICENTIS | 1 | done | — | 2026-10-08 |
-| [WO-106](WO-106-dcnm-seat-assignment-and-prep-editing.md) | DCNM: seat assignment, participant and agenda editing on a wired system | 3 | draft | 101 | 2026-10-08 |
+| [WO-106](WO-106-dcnm-seat-assignment-and-prep-editing.md) | DCNM: participant editing + seat assignment on a wired system (DEC-034; agenda → WO-116) | 3 | review | 101 | 2026-10-12 |
 | [WO-107](WO-107-strip-bosch-text-and-release.md) | Ship specs without Bosch's text; fix ignore rules; release v0.1.0 | 4 | done | 097, 100 | 2026-10-09 |
 | [WO-108](WO-108-director-faster-shots.md) | Director: faster preset recalls, immediate overview (DEC-031) | 5 | review | 039, 056 | 2026-10-10 |
 | [WO-109](WO-109-web-ui-reconnects-to-backend.md) | Web UI reconnects to the backend by itself (no refresh needed) | 4 | done | 012, 018 | 2026-10-10 |
 | [WO-110](WO-110-release-v0-1-1.md) | Release v0.1.1 (WO-108, WO-109) | 4 | done | 107, 108, 109 | 2026-10-10 |
+| [WO-111](WO-111-ccs1000-support.md) | CCS 1000 D support: fourth system type on the wireless REST adapter (DEC-032) | 2 | review | 014, 015, 017, 027, 095 | 2026-10-12 |
+| [WO-112](WO-112-kramer-tvone-switchers.md) | Video switchers Kramer MV-6 and tvONE CORIOmaster/CORIOmatrix (DEC-033) | 5 | review | 037, 038, 040 | 2026-10-12 |
+| [WO-113](WO-113-ccs1000-real-hardware.md) | CCS 1000 D on a real CCSD-CU (hardware check) | 4 | draft | 111 | 2026-10-12 |
+| [WO-114](WO-114-kramer-tvone-hardware.md) | Kramer MV-6 and tvONE CORIO on real hardware | 5 | draft | 112 | 2026-10-12 |
+| [WO-115](WO-115-dcnm-payload-shapes.md) | DCNM payloads the real bridge accepts (audio, languages): strict constructor check everywhere | 2 | review | 081, 102, 106 | 2026-10-12 |
+| [WO-116](WO-116-dcnm-agenda-and-prepared-meetings.md) | DCNM: agenda editing and prepared (non-active) meetings on a wired system | 3 | draft | 106 | 2026-10-12 |
+| [WO-117](WO-117-quick-actions-api.md) | Quick-actions API for Bitfocus Companion (DEC-035) | 2 | review | 017, 099 | 2026-10-12 |
+| [WO-118](WO-118-companion-module-likeabosch.md) | Companion module `likeabosch` (quick API + bridges via LikeABosch, DEC-036) | 5 | review | 117 | 2026-10-12 |
+| [WO-119](WO-119-companion-module-bosch-discussion-system.md) | Companion module `bosch-discussion-system`: all Bosch systems, network APIs only (DEC-036) | 5 | review | 111, 075, 032, 066 | 2026-10-12 |
+| [WO-120](WO-120-auto-start-bridges.md) | Launcher starts the bridges by itself when the Bosch DLLs are installed (DEC-037) | 3 | review | 080 | 2026-10-12 |
 
 ## Suggested order / parallelism
 
@@ -149,6 +159,11 @@ Statuses: `draft` · `ready` · `in-progress` · `blocked` · `review` · `done`
   (WO-105). Order: 105, 103, 101, 081, 102, 104.
 - **2026-10-10 (next.md):** faster camera shots + immediate overview (WO-108, DEC-031); web UI reconnects to the
   backend without a refresh (WO-109).
+- **2026-10-12 (user batch):** CCS 1000 D as a fourth system (WO-111, DEC-032); Kramer MV-6 + tvONE CORIO switchers
+  (WO-112, DEC-033); wired participant add / edit through the DCNM API (WO-106, DEC-034). WO-115 (DCNM payloads cut to
+  their constructors, strict mock check on every interface) in review. Then Companion: quick API (WO-117), modules
+  (WO-118, WO-119), bridges auto-start (WO-120). **Next:** hardware checks WO-082 (DICENTIS PC with the bridge), WO-113,
+  WO-114; Companion modules inside a real Companion.
 - Then WO-009 + WO-010 (client and mock together), then WO-011, WO-012, WO-013.
 - WO-016 (smoke test on real hardware) as soon as WO-011 works, since it surfaces spec errors early.
 - WO-030 (launcher) can start once WO-013 is done; it doesn't need the full UI.

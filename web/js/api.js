@@ -36,6 +36,8 @@ export const api = {
   domain: (method, path, body) => request(method, `/domain${path}`, body),
   /** Call a wireless REST endpoint through the passthrough (WO-015). */
   wireless: (method, path, body) => request(method, `/wireless${path}`, body),
+  /** Call a CCS 1000 D REST endpoint through the passthrough (DEC-032). */
+  ccs1000: (method, path, body) => request(method, `/ccs1000${path}`, body),
   /** Call a DCN-SW API method through the passthrough (WO-060): dcn('control.DiscussionApi', 'SpeakNow', { participantId: 0, seatId: 3 }). */
   dcn: (apiKey, method, args = {}) => request('POST', `/dcn/ops/${encodeURIComponent(apiKey)}/${encodeURIComponent(method)}`, args),
   /** Call a Conference Protocol operation through the passthrough (WO-011). */

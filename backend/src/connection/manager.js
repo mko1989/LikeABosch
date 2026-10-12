@@ -8,6 +8,7 @@ import { AppError } from '../lib/errors.js';
 import { DEFAULT_PORTS, SYSTEMS } from '../config.js';
 import { WiredClient } from '../wired/client.js';
 import { WirelessClient } from '../wireless/client.js';
+import { CCS_TOPICS } from '../wireless/topics.js';
 import { DcnClient } from '../dcn/client.js';
 import { DcnSmdClient } from '../dcn-smd/client.js';
 import { DcnmClient } from '../dcnm/client.js';
@@ -37,7 +38,7 @@ const FIELDS = {
 };
 const SECRETS = new Set(['password', 'bridgeToken']);
 /** Names of the profiles the launcher's simulation option creates (WO-098); the operator may rename them. */
-const LAUNCHER_SIM_NAME = { wired: 'DICENTIS demo', wireless: 'DICENTIS Wireless demo', dcn: 'DCN demo', 'dcn-smd': 'DCN meeting data demo' };
+const LAUNCHER_SIM_NAME = { wired: 'DICENTIS demo', wireless: 'DICENTIS Wireless demo', dcn: 'DCN demo', 'dcn-smd': 'DCN meeting data demo', ccs1000: 'CCS 1000 D demo' };
 
 /**
  * @typedef {import('../config.js').DicentisConfig} Settings
@@ -209,8 +210,11 @@ export class ConnectionManager extends EventEmitter {
   /** The active client if it is a wired one (for the wired passthrough). */
   get wiredClient() { return this.client instanceof WiredClient ? this.client : null; }
 
-  /** The active client if it is a wireless one (for the wireless passthrough). */
-  get wirelessClient() { return this.client instanceof WirelessClient ? this.client : null; }
+  /** The active client if it is a DICENTIS Wireless one (for the wireless passthrough). */
+  get wirelessClient() { return this.client instanceof WirelessClient && this.client.system !== 'ccs1000' ? this.client : null; }
+
+  /** The active client if it talks to a CCS 1000 D (same REST dialect, own spec, DEC-032). */
+  get ccs1000Client() { return this.client instanceof WirelessClient && this.client.system === 'ccs1000' ? this.client : null; }
 
   /** The active client if it is a DCN one (for the DCN passthrough). */
   get dcnClient() { return this.client instanceof DcnClient ? this.client : null; }
@@ -220,7 +224,7 @@ export class ConnectionManager extends EventEmitter {
 
   /**
    * (Re)connect with the current settings. Resolves with status; rejects with the connect error.
-   * @param {{ override?: boolean }} [options]  wireless: take over a session of the same user (login 409)
+   * @param {{ override?: boolean }} [options]  wireless / ccs1000: take over a session of the same user (login 409)
    */
   async connect({ override = false } = {}) {
     if (this.settings.simulate && !this.simProfile) throw new AppError('VALIDATION', 'The selected simulated system does not exist any more');
@@ -237,6 +241,7 @@ export class ConnectionManager extends EventEmitter {
     if (!s.user && s.system !== 'dcn-smd') throw new AppError('VALIDATION', 'User is not configured');
 
     const client = s.system === 'wireless' ? new WirelessClient({ ...s, override, log: this.log.child('wireless') })
+      : s.system === 'ccs1000' ? Object.assign(new WirelessClient({ ...s, override, product: 'CCS 1000 D', log: this.log.child('ccs1000') }), { system: 'ccs1000' })
       : s.system === 'dcn' ? new DcnClient({ ...s, token: s.bridgeToken, log: this.log.child('dcn') })
         : s.system === 'dcn-smd' ? new DcnSmdClient({ host: s.host, port: s.port, log: this.log.child('dcn-smd') })
         : new WiredClient({ ...s, log: this.log.child('wired') });
@@ -245,7 +250,7 @@ export class ConnectionManager extends EventEmitter {
       if (state === 'loggedIn') this.connectedSince = new Date().toISOString();
       this.emit('status', this.status());
     });
-    if (client instanceof WirelessClient) this.poller.attach(client);
+    if (client instanceof WirelessClient) this.poller.attach(client, s.system === 'ccs1000' ? CCS_TOPICS : undefined);
     else if (client instanceof DcnSmdClient) this.dcnSmd?.attach(client);
     else if (client instanceof DcnClient) {
       this.dcnEvents?.attach(client);

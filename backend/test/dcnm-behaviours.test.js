@@ -100,7 +100,7 @@ test('gain adjust rounds to the step, updates state and emits AudioSettingsChang
 test('equalizer band update validates ranges and emits', () => {
   const { world, events, call, expectBadArgs } = harness();
   call('RoomAudioControl', 'AdjustAudioEqualizerSettingsAsync', {
-    equalizerSettings: { EqualizerType: 'Loudspeaker', FilterNumber: 2, Gain: 6, Frequency: 1200, QFactor: 2.5 },
+    equalizerSettings: { EqualizerType: 'Loudspeaker', FilterNumber: 2, Gain: 6, Frequency: 1200, QualityFactor: 2.5 }, // constructor name (WO-115)
   });
   const band = world.audio.equalizers.find(e => e.EqualizerType === 'Loudspeaker' && e.FilterNumber === 2);
   assert.equal(band.Gain, 6);
@@ -113,7 +113,7 @@ test('equalizer band update validates ranges and emits', () => {
     equalizerSettings: { EqualizerType: 'Loudspeaker', FilterNumber: 2, Gain: 13 },
   }));
   expectBadArgs(() => call('RoomAudioControl', 'AdjustAudioEqualizerSettingsAsync', {
-    equalizerSettings: { EqualizerType: 'Loudspeaker', FilterNumber: 2, QFactor: 0.05 },
+    equalizerSettings: { EqualizerType: 'Loudspeaker', FilterNumber: 2, QualityFactor: 0.05 },
   }));
   expectBadArgs(() => call('RoomAudioControl', 'AdjustAudioEqualizerSettingsAsync', {
     equalizerSettings: { EqualizerType: 'Loudspeaker', FilterNumber: 2, Frequency: 19 },

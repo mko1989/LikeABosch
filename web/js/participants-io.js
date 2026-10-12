@@ -58,17 +58,20 @@ async function importDialog(f, { store, api }) {
       u.to.name !== undefined && `name → ${u.to.name}`,
       u.to.seatId !== undefined && `seat ${u.from.seatName ?? 'none'} → ${seat(u.seatName)}`,
       u.to.nfc !== undefined && `NFC → ${u.to.nfc || 'none'}`,
+      u.to.group !== undefined && `group → ${u.to.group || 'none'}`,
     ].filter(Boolean).join(', ')];
     replace(body,
-      h('p', { class: 'muted small-text' }, `${f.name} · sheet "${plan.sheet}" · ${plan.columns.seat ? 'with' : 'without'} seats · ${plan.columns.nfc ? 'with' : 'without'} NFC tags · ${plan.unchanged} unchanged`),
+      h('p', { class: 'muted small-text' }, `${f.name} · sheet "${plan.sheet}" · ${plan.columns.seat ? 'with' : 'without'} seats · ${plan.columns.nfc ? 'with' : 'without'} NFC tags${plan.columns.group ? ' · with groups' : ''} · ${plan.unchanged} unchanged`),
       plan.errors.length ? [h('h3', { class: 'error-text' }, `Errors (${plan.errors.length}): nothing can be applied`), h('ul', { class: 'compact import-list error-text' }, plan.errors.map(e => h('li', null, rowText(e))))] : null,
-      list('New participants', plan.creates, c => [h('strong', null, c.name), c.seatName ? ` · ${c.seatName}` : '', c.nfc ? ` · NFC ${c.nfc}` : '']),
+      list('New participants', plan.creates, c => [h('strong', null, c.name), c.group ? ` · ${c.group}` : '', c.seatName ? ` · ${c.seatName}` : '', c.nfc ? ` · NFC ${c.nfc}` : '']),
       list('Changes', plan.updates, change),
       list('Lose their seat / NFC tag', plan.unassigns, u => [h('strong', null, u.name), u.seatName ? ` · ${u.seatName}` : '', u.nfc ? ' · NFC tag' : '']),
       list('Deleted', plan.deletes, d => h('strong', null, d.name)),
-      list('Notes', plan.warnings.filter(w => w.line), rowText), // the others repeat "Lose their seat"
+      list('Notes', plan.warnings.filter(w => w.line || !w.message.includes(' loses ')), rowText), // "loses" ones repeat "Lose their seat"
       !plan.errors.length && !n ? h('p', null, 'Nothing to change: the system already matches the file.') : null,
-      !canEdit ? h('p', { class: 'muted small-text' }, 'The connected system does not let LikeABosch edit participants: this is a preview only.') : null);
+      !canEdit ? h('p', { class: 'muted small-text' }, store.system === 'wired'
+        ? 'Preview only: applying it on a wired DICENTIS needs the full DICENTIS API (dicentis-bridge, Settings → Connection).'
+        : 'The connected system does not let LikeABosch edit participants: this is a preview only.') : null);
     apply.disabled = !canEdit || plan.errors.length > 0 || n === 0;
     apply.textContent = n ? `Apply ${n} change${n === 1 ? '' : 's'}` : 'Apply';
   }

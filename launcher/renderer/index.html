@@ -27,6 +27,7 @@
               <option value="">The real system configured below</option>
               <option value="wired">Simulated DICENTIS (wired)</option>
               <option value="wireless">Simulated DICENTIS Wireless</option>
+              <option value="ccs1000">Simulated CCS 1000 D</option>
               <option value="dcn">Simulated DCN NG (control)</option>
               <option value="dcn-smd">Simulated DCN NG (meeting data)</option>
             </select>
@@ -44,6 +45,7 @@
           <select name="system">
             <option value="wired">DICENTIS (wired server)</option>
             <option value="wireless">DICENTIS Wireless (WAP)</option>
+            <option value="ccs1000">CCS 1000 D (CCSD-CU)</option>
             <option value="dcn-smd">DCN Next Generation: meeting data stream (read-only)</option>
             <option value="dcn">DCN Next Generation: full control (via dcn-bridge)</option>
           </select>
@@ -129,6 +131,8 @@
       <details id="bridges-panel">
         <summary>Bridges (Windows)</summary>
         <label class="check"><input name="manageBridges" type="checkbox"> Start the bridge the settings need on this PC</label>
+        <label class="check"><input name="autoBridges" type="checkbox"> Also start a bridge when its Bosch software is installed here (DICENTIS, DCN-SW)</label>
+        <p class="hint" id="bosch-found"></p>
         <label>dicentis-bridge.exe (optional)
           <input name="dcnmExe" type="text" placeholder="bundled / bridge\dicentis\bin\Release\net48" spellcheck="false">
         </label>

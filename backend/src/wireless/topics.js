@@ -25,3 +25,9 @@ export const WIRELESS_TOPICS = [
   { topic: 'wirelessSystemSettings', path: '/system/settings', poll: 'slow', undocumented: true },
   { topic: 'wirelessUpgrades', path: '/upgrades', poll: 'interval', rights: 'can_configure', undocumented: true },
 ];
+
+/**
+ * CCS 1000 D (DEC-032): the documented endpoints it shares with the WAP, under the same topic names (same payloads,
+ * so the wireless domain mappers apply). No participants, voting or WAP web UI endpoints.
+ */
+export const CCS_TOPICS = WIRELESS_TOPICS.filter(t => ['/system-info', '/system/status', '/seats', '/speakers', '/waiting-list'].includes(t.path));

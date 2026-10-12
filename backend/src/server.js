@@ -9,7 +9,7 @@ import { StateCache } from './state/cache.js';
 import { createSseHub } from './lib/sse.js';
 import { ConnectionManager } from './connection/manager.js';
 import { WirelessPoller } from './wireless/poller.js';
-import { loadWirelessSpec } from './wireless/spec.js';
+import { CCS_SPEC_FILE, loadWirelessSpec } from './wireless/spec.js';
 import { loadDcnSpec } from './dcn/spec.js';
 import { DcnEventBridge } from './dcn/events.js';
 import { DcnSmdSync } from './dcn-smd/sync.js';
@@ -43,6 +43,7 @@ export async function start(config = loadConfig()) {
   bridge.on('notification', n => hub.broadcast('notification', n));
 
   const wirelessSpec = loadWirelessSpec();
+  const ccsSpec = loadWirelessSpec(CCS_SPEC_FILE); // CCS 1000 D (DEC-032)
   const poller = new WirelessPoller({ cache, log: log.child('wireless-poller') });
   const dcnSpec = loadDcnSpec();
   const dcnEvents = new DcnEventBridge({ cache, log: log.child('dcn-events') });
@@ -59,7 +60,7 @@ export async function start(config = loadConfig()) {
   const projects = new ProjectManager({ dataDir: config.dataDir, room, devices, cache, log: log.child('projects'), legacyDirs: config.dataDirIsDefault ? legacyDataDirs() : [] });
   cache.on('change', topic => { if (topic === 'permissions') hub.broadcast('connection', manager.status()); });
 
-  const app = createApp({ config, log, services: { spec, wirelessSpec, dcnSpec, dcnEvents, dcnSmd, dcnmSpec, dicentis, cache, hub, manager, bridge, poller, devices, room, projects } });
+  const app = createApp({ config, log, services: { spec, wirelessSpec, ccsSpec, dcnSpec, dcnEvents, dcnSmd, dcnmSpec, dicentis, cache, hub, manager, bridge, poller, devices, room, projects } });
   const server = app.listen(config.port, config.bindHost);
   await new Promise((resolve, reject) => {
     server.once('listening', resolve);
@@ -90,7 +91,7 @@ export async function start(config = loadConfig()) {
     hub.close();
     await new Promise(resolve => { server.closeAllConnections?.(); server.close(() => resolve()); });
   };
-  return { server, url, close, services: { spec, wirelessSpec, dcnSpec, dcnEvents, dcnSmd, dcnmSpec, dcnmMirror, dicentis, cache, hub, bridge, poller, manager, domain, devices, room, projects, director, companion } };
+  return { server, url, close, services: { spec, wirelessSpec, ccsSpec, dcnSpec, dcnEvents, dcnSmd, dcnmSpec, dcnmMirror, dicentis, cache, hub, bridge, poller, manager, domain, devices, room, projects, director, companion } };
 }
 
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;

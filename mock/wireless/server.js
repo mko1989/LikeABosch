@@ -1,12 +1,15 @@
 // Mock DICENTIS Wireless (WAP) REST API v1.7 (WO-014, DEC-006). Semantics follow a real DCNM-WAP, firmware 1.73
 // (WO-075, findings in docs/protocol/wireless-rest/README.md "Observed behaviour").
+// `variant: 'ccs1000'`: a CCS 1000 D CCSD-CU (REST API 1.8, DEC-032): its own swagger (no participants, voting or WAP web
+// UI endpoints: 404), seats with `mode`, microphone sensitivity per seat, power on/standby only.
+// Run: npm run mock:ccs1000 (env MOCK_PORT, default 8081).
 // Run: npm run mock:wireless   (env MOCK_PORT, default 8080; user admin / password admin) → http://127.0.0.1:8080/api
 // Long-poll (`?isPolling=true`): held until the resource changes or `longPollMs` (WAP: ~50 s) passes, then answered
 // with the current data.
 import express from 'express';
 import { randomBytes } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
-import { loadWirelessSpec, validateSchema } from '../../backend/src/wireless/spec.js';
+import { CCS_SPEC_FILE, loadWirelessSpec, validateSchema } from '../../backend/src/wireless/spec.js';
 
 const NAMES = ['Anna de Vries', 'Bart Jansen', 'Chloe Bakker', 'Dirk Visser', 'Eva Smit', 'Femke Meijer', 'Gerrit de Boer', 'Hanna Mulder',
   'Ivo de Groot', 'Julia Bos', 'Kees Vos', 'Lotte Peters', 'Maarten Hendriks', 'Noor van Leeuwen', 'Olaf Dekker', 'Pim Brouwer'];
@@ -30,7 +33,23 @@ class HttpError extends Error {
   constructor(status, details) { super(details ?? REASON[status]); this.status = status; this.details = details; }
 }
 
-function createState({ seatCount = 20 } = {}) {
+/** CCSD-CU microphone sensitivity: 0..15 = −6…+9 dB; 6 = 0 dB (the default). */
+const SENSITIVITY_DEFAULT = 6;
+
+function createState({ seatCount = 20, ccs = false } = {}) {
+  const state = createWapState({ seatCount });
+  if (!ccs) return state;
+  // CCS 1000 D: seats carry `mode` (0 normal, 2 button, 3 PTT) instead of the wireless battery / signal fields.
+  state.seats = state.seats.map(s => ({
+    id: s.id, name: s.name, prio: s.prio, connected: s.connected, selected: false, cameraId: -1, cameraPrepos: -1, mode: 0,
+  }));
+  state.participants = [];
+  state.nextParticipantId = 1;
+  state.sensitivity = new Map(state.seats.map(s => [s.id, SENSITIVITY_DEFAULT]));
+  return state;
+}
+
+function createWapState({ seatCount = 20 } = {}) {
   return {
     seats: Array.from({ length: seatCount }, (_, i) => ({
       id: i + 1, name: i === 0 ? 'Chairman' : `Seat ${i + 1}`, prio: i === 0, dual: false, identification: true, voting: true,
@@ -71,7 +90,7 @@ function createState({ seatCount = 20 } = {}) {
     round: { mode: 4, subject: '' },
     votes: new Map(), // seatId → answer name
     /** resource → change counter, for long-polling */
-    versions: { seats: 0, speakers: 0, waiting: 0, participants: 0, settings: 0, system: 0, voting: 0, discuss: 0, audio: 0, equalizer: 0, seatsStatus: 0, rangeTest: 0, systemSettings: 0, upgrades: 0 },
+    versions: { sensitivity: 0, seats: 0, speakers: 0, waiting: 0, participants: 0, settings: 0, system: 0, voting: 0, discuss: 0, audio: 0, equalizer: 0, seatsStatus: 0, rangeTest: 0, systemSettings: 0, upgrades: 0 },
   };
 }
 
@@ -83,10 +102,13 @@ function createState({ seatCount = 20 } = {}) {
  * @param {number} [options.longPollMs]
  * @param {number} [options.seatCount]  simulation (WO-095): number of seats
  * @param {string} [options.hostname]   simulation: the host name the WAP reports
+ * @param {'wap' | 'ccs1000'} [options.variant]  ccs1000 = a CCS 1000 D control unit (DEC-032)
  */
-export async function createMockWirelessServer({ port = 0, host = '127.0.0.1', users = { admin: 'admin' }, longPollMs = 50_000, seatCount = 20, hostname = 'mock-wap.local' } = {}) {
-  const spec = loadWirelessSpec();
-  const state = createState({ seatCount });
+export async function createMockWirelessServer({ port = 0, host = '127.0.0.1', users = { admin: 'admin' }, longPollMs = 50_000, seatCount = 20, hostname, variant = 'wap' } = {}) {
+  const ccs = variant === 'ccs1000';
+  hostname ??= ccs ? 'mock-ccsd-cu.local' : 'mock-wap.local';
+  const spec = ccs ? loadWirelessSpec(CCS_SPEC_FILE) : loadWirelessSpec();
+  const state = createState({ seatCount, ccs });
   state.hostname = hostname; // simulation (WO-095): the name the WAP reports
   /** sid → username */
   const sessions = new Map();
@@ -156,13 +178,28 @@ export async function createMockWirelessServer({ port = 0, host = '127.0.0.1', u
     'POST /logout': { handler: req => { sessions.delete(req.sid); } },
     'GET /system-info': {
       handler: () => ({
-        'System Type': 'DICENTIS Wireless', 'Device Type': 'DCNM-WAP (mock)', Hostname: state.hostname,
+        'System Type': ccs ? 'CCS 1000 D Digital Discussion System' : 'DICENTIS Wireless', 'Device Type': ccs ? 'CCSD-CU (mock)' : 'DCNM-WAP (mock)',
+        Hostname: state.hostname, ...(ccs ? { Serial: '000000000000' } : {}),
         Networks: { Ethernet: { eth0: { IP: host, MAC: '00:1B:EB:00:00:01', 'Subnet mask': '255.255.255.0', 'Default gateway': '' } } },
-        Versions: { Firmware: '3.10.0-mock', Api: ['1.7'] },
+        Versions: { Firmware: '3.10.0-mock', Api: ccs ? ['1.8'] : ['1.7'] },
       }),
     },
     'GET /seats': { resource: 'seats', handler: () => state.seats.map(seatView) },
     'GET /seats/{seat_id}': { resource: 'seats', handler: req => seatView(seat(req.pathParams.seat_id)) },
+    // CCS 1000 D only (the WAP's spec has no such paths, so they 404 there).
+    'GET /seats/microphonesensitivity/{seat_id}': { resource: 'sensitivity', handler: req => ({ sensitivity: state.sensitivity.get(seat(req.pathParams.seat_id).id) }) },
+    'PUT /seats/microphonesensitivity/{seat_id}': {
+      handler: req => {
+        const s = seat(req.pathParams.seat_id);
+        const v = req.body?.sensitivity;
+        if (!inRange(v, 15)) throw outOfRange('sensitivity');
+        state.sensitivity.set(s.id, v);
+        changed('sensitivity');
+      },
+    },
+    'POST /seats/resetmicrophonesensitivities': {
+      handler: () => { for (const id of state.sensitivity.keys()) state.sensitivity.set(id, SENSITIVITY_DEFAULT); changed('sensitivity'); },
+    },
     'GET /speakers/available': {
       resource: 'speakers',
       handler: () => state.seats.filter(s => s.connected && !state.speakers.some(e => e.id === s.id)).map(s => spkEntry(s, { micOn: false })),
@@ -296,7 +333,7 @@ export async function createMockWirelessServer({ port = 0, host = '127.0.0.1', u
       handler: req => {
         const next = req.body?.state;
         if (next === undefined) return {};
-        if (!inRange(next, 2)) throw outOfRange('state');
+        if (!inRange(next, ccs ? 1 : 2)) throw outOfRange('state'); // CCS 1000 D: on / standby only
         const prev = state.system.state;
         if (prev === 0 && next !== 0) {
           // Standby / off: every seat drops off at once and the lists empty.
@@ -381,7 +418,7 @@ export async function createMockWirelessServer({ port = 0, host = '127.0.0.1', u
 
   /** Seat as the WAP shows it: battery/signal values are null while the seat is not connected. */
   function seatView(s) {
-    return s.connected ? s : { ...s, batteryStatus: null, batteryCharges: null, signalStatus: null, signalLevel: null, batterySerialNo: '' };
+    return s.connected || ccs ? s : { ...s, batteryStatus: null, batteryCharges: null, signalStatus: null, signalLevel: null, batterySerialNo: '' };
   }
 
   /** Undocumented endpoints (docs/protocol/wireless-rest/undocumented.json, DEC-024): the WAP web UI's own API. */
@@ -505,7 +542,7 @@ export async function createMockWirelessServer({ port = 0, host = '127.0.0.1', u
 
   const app = express();
   // Firmware / seat display image upload (undocumented, like the web UI's FileUploader): multipart field "firmware".
-  app.post(`${spec.basePath}/upgrades/file`, express.raw({ type: () => true, limit: '64mb' }), (req, res) => {
+  if (!ccs) app.post(`${spec.basePath}/upgrades/file`, express.raw({ type: () => true, limit: '64mb' }), (req, res) => {
     const sid = req.get('bosch-sid') ?? /(?:^|;\s*)sid=([^;]+)/.exec(req.get('cookie') ?? '')?.[1];
     if (!sid || !sessions.has(sid)) return res.status(401).end();
     const boundary = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(req.get('content-type') ?? '');
@@ -615,7 +652,8 @@ export async function createMockWirelessServer({ port = 0, host = '127.0.0.1', u
 
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
-  const mock = await createMockWirelessServer({ port: Number(process.env.MOCK_PORT ?? 8080), host: process.env.MOCK_HOST ?? '127.0.0.1' });
-  console.log(`[mock:wireless] listening on ${mock.url} (user admin / password admin)`);
+  const variant = process.argv.includes('--ccs1000') ? 'ccs1000' : 'wap';
+  const mock = await createMockWirelessServer({ port: Number(process.env.MOCK_PORT ?? (variant === 'ccs1000' ? 8081 : 8080)), host: process.env.MOCK_HOST ?? '127.0.0.1', variant });
+  console.log(`[mock:${variant === 'ccs1000' ? 'ccs1000' : 'wireless'}] listening on ${mock.url} (user admin / password admin)`);
   process.on('SIGINT', async () => { await mock.close(); process.exit(0); });
 }

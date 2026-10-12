@@ -7,10 +7,10 @@ import { createMockDcnBridge } from '../../../mock/dcn/server.js';
 import { createMockSmdServer } from '../../../mock/dcn-smd/server.js';
 import { createLinkedDcnmBridge } from '../../../mock/dcnm/wired-link.js';
 
-export const SIM_TYPES = ['wired', 'wireless', 'dcn', 'dcn-smd'];
+export const SIM_TYPES = ['wired', 'wireless', 'dcn', 'dcn-smd', 'ccs1000'];
 export const MAX_SIM_SEATS = 500;
 
-/** @typedef {{ id: string, name: string, type: 'wired' | 'wireless' | 'dcn' | 'dcn-smd', seats: number, fullApi?: boolean }} SimProfile */
+/** @typedef {{ id: string, name: string, type: 'wired' | 'wireless' | 'dcn' | 'dcn-smd' | 'ccs1000', seats: number, fullApi?: boolean }} SimProfile */
 
 /** Wired: also simulate the full DICENTIS API (dicentis-bridge) unless switched off (WO-101, DEC-029 §4). */
 export const simFullApi = p => p.type === 'wired' && p.fullApi !== false;
@@ -40,8 +40,10 @@ export async function startSimulator(profile) {
     const full = dcnm ? { dcnmBridge: true, dcnmHost: '127.0.0.1', dcnmPort: dcnm.port, dcnmDevice: 'LikeABosch', dcnmServer: '', bridgeToken: '' } : { dcnmBridge: false };
     return { settings: { ...base, port: mock.port, tlsInsecure: true, ...full }, close: async () => { await dcnm?.close(); await mock.close(); } };
   }
-  if (profile.type === 'wireless') {
-    const mock = await createMockWirelessServer({ seatCount: profile.seats, hostname: profile.name, users: { [user]: password }, longPollMs: 20_000 });
+  if (profile.type === 'wireless' || profile.type === 'ccs1000') {
+    const mock = await createMockWirelessServer({
+      seatCount: profile.seats, hostname: profile.name, users: { [user]: password }, longPollMs: 20_000, variant: profile.type === 'ccs1000' ? 'ccs1000' : 'wap',
+    });
     return { settings: { ...base, port: mock.port }, close: () => mock.close() };
   }
   if (profile.type === 'dcn') {

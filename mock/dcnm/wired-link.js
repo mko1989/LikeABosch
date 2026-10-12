@@ -1,9 +1,10 @@
 // Linked simulation (WO-101, DEC-029 §4): a mock dicentis-bridge whose DCNM state is built from, and kept in step with,
 // a running Conference Protocol mock, as on a real system where both APIs see one DICENTIS database:
 // same seats and interpreter desks, the wired active meeting, the wired interpretation languages (same ids) as the
-// meeting languages; DCNM changes to meeting languages / desk outputs / presentation are written into the wired mock's
-// state and announced with its events; presentation switched through the Conference Protocol is seen by DCNM too.
-import { createMockDcnmBridge } from './server.js';
+// meeting languages, the wired participants as persons + participants of the active meeting (WO-106); DCNM changes to
+// meeting languages / desk outputs / presentation / participants are written into the wired mock's state and announced
+// with its events; presentation switched through the Conference Protocol is seen by DCNM too.
+import { createMockDcnmBridge, PARTICIPANT_GROUP_ID } from './server.js';
 import { createDcnmWorld, onChange, EMPTY_GUID } from './behaviours.js';
 import { ensure as ensureInterpretation } from '../wired/behaviours/interpretation.js';
 
@@ -38,14 +39,30 @@ export async function createLinkedDcnmBridge(wired, options = {}) {
     }
   }
   const boothNumber = id => interp.booths.find(b => b.boothId === id)?.boothNumber ?? '?';
+  // Participants (WO-106): wired participantId = DCNM participant Id, personId = the person's UserId.
+  const meetingId = ws.activeMeetingId ?? 'meeting-1';
+  const persons = ws.participants.map(p => ({
+    UserId: p.personId, UserName: p.userName || p.personId, Password: '', PinCode: '',
+    User: { UserId: p.personId, FirstName: p.firstName ?? '', MiddleName: p.middleName ?? '', LastName: p.lastName ?? '', Title: p.title ?? '',
+      Group: p.group ?? '', Country: p.country ?? '', Region: p.region ?? '', Email: p.email ?? '', NFCId: '', UiLanguage: '', UserGroupId: PARTICIPANT_GROUP_ID },
+  }));
+  const participants = ws.participants.map(p => ({
+    Id: p.participantId, MeetingId: meetingId, UserId: p.personId, UserName: p.userName || p.personId, ScreenLine: p.screenLine ?? '',
+    AssignedAt: ws.seats.find(x => x.assignedParticipantId === p.participantId)?.seatId ?? EMPTY_GUID,
+    CanDiscuss: true, CanVote: Boolean(p.canVote), CanUsePriority: Boolean(p.canPrio), CanManageMeeting: false, HasSpecialPermission: false,
+    VipType: 'None', VoteWeight: p.voteWeight ?? 1,
+  }));
   const world = createDcnmWorld({
     seats: ws.seats.map(s => ({ id: s.seatId, name: s.seatName })),
     interpreterSeats: interp.seats.map(d => ({ id: d.seatId, name: `Booth ${boothNumber(d.boothId)} Desk ${d.deskNumber}` })),
-    meetingId: ws.activeMeetingId ?? 'meeting-1',
+    meetingId,
     meetingTitle: ws.meetings?.find(m => m.meetingId === ws.activeMeetingId)?.meetingTitle ?? 'Meeting',
     languages,
     meetingLanguageIds: wiredLangs.map(l => l.languageId),
     presentation: Boolean(ws.isPresentationEnabled),
+    persons,
+    participants,
+    participantGroupId: PARTICIPANT_GROUP_ID,
   });
   // Desk outputs as the wired mock has them.
   for (const desk of world.desks) {
@@ -81,11 +98,34 @@ export async function createLinkedDcnmBridge(wired, options = {}) {
     }
     wired.fire('interpreterSeatsChanged');
   };
+  const writeParticipants = () => {
+    const old = new Map(ws.participants.map(p => [p.participantId, p]));
+    ws.participants = world.participants.filter(p => p.MeetingId === world.meetingId).map(p => {
+      const u = world.persons.find(x => x.UserId === p.UserId)?.User ?? {};
+      return {
+        canPrio: p.CanUsePriority, canVote: p.CanVote, country: u.Country ?? '', email: u.Email ?? '', firstName: u.FirstName ?? '', group: u.Group ?? '',
+        isAuthenticated: old.get(p.Id)?.isAuthenticated ?? false, lastName: u.LastName ?? '', middleName: u.MiddleName ?? '', participantId: p.Id,
+        participantType: 'local', personId: p.UserId, pictureUpdatedNumber: 0, region: u.Region ?? '',
+        screenLine: [u.Title, u.FirstName, u.MiddleName, u.LastName].filter(Boolean).join(' ') || p.ScreenLine, title: u.Title ?? '',
+        userName: p.UserName, visType: 'none', voteWeight: p.VoteWeight,
+      };
+    });
+    const ids = new Set(ws.participants.map(p => p.participantId));
+    for (const seat of ws.seats) {
+      const holder = world.participants.find(p => p.AssignedAt === seat.seatId);
+      seat.assignedParticipantId = holder?.Id ?? '';
+      if (seat.seatedParticipantId && !ids.has(seat.seatedParticipantId)) seat.seatedParticipantId = '';
+      const shown = ws.participants.find(p => p.participantId === (seat.seatedParticipantId || seat.assignedParticipantId));
+      seat.screenLine = shown?.screenLine ?? seat.seatName;
+    }
+    wired.fire('participantsChanged', 'participantSeatsChanged', 'seatsChanged');
+  };
   let fromWired = false;
   onChange(world, kind => {
     if (kind === 'meetingLanguages') { writeLanguages(); writeDesks(); }   // deleting a language also clears desks
     if (kind === 'languages') writeLanguages();                             // labels of meeting languages
     if (kind === 'desks') writeDesks();
+    if (kind === 'persons' || kind === 'participants') writeParticipants();
     if (kind === 'presentation' && !fromWired) {
       presentation = world.presentation;
       wired.fire('presentationStateChanged');

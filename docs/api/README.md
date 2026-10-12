@@ -35,6 +35,7 @@ The browser UI (and any other client) talks only to this API. Base path `/api`. 
 | `GET /api/dcnm`, `GET /api/dcnm/ops`, `POST /api/dcnm/ops/:api/:method`, `GET\|PUT /api/dcnm/props/…`, `POST /api/dcnm/callbacks/:id`, `DELETE /api/dcnm/handles/:handle` | Full DICENTIS DCNM API through the dicentis-bridge (wired + `dcnmBridge`): [dcnm-passthrough.md](dcnm-passthrough.md) |
 | `GET /api/dicentis`, `POST /api/dicentis/<area>/<action>` | DICENTIS audio & Dante, languages over the full API (DEC-029): [dicentis.md](dicentis.md) |
 | `/api/domain/...` + `domain.*` topics | system-independent actions and state: [domain.md](domain.md) |
+| `/api/quick/...` | quick actions for Bitfocus Companion (seat mic, request, priority; every system): [quick.md](quick.md) |
 
 ## Settings precedence
 Environment (launcher or `.env`) > `data/settings.json` (saved via API) > defaults. The password and the DCN bridge token are never written to disk by the backend.

@@ -13,16 +13,17 @@
 //   PUT    /api/domain/voting/parameters              { subject?, mode? } (wireless)
 //   POST   /api/domain/meeting/start                  { meetingId }  wired: activate + open; dcn: meeting + its first session (WO-072)
 //   POST   /api/domain/meeting/stop                                  wired: close; dcn: session + meeting
-//   POST   /api/domain/participants                   { name, seatId?, nfc? } → { id }   (DEC-023, wireless)
-//   PUT    /api/domain/participants/:id               { name?, seatId?, nfc? }  seatId null = no seat
+//   POST   /api/domain/participants                   { name, seatId?, nfc?, group? } → { id }   (DEC-023; wireless, wired with the DCNM API: DEC-034)
+//   PUT    /api/domain/participants/:id               { name?, seatId?, nfc?, group? }  seatId null = no seat; group: wired only
 //   DELETE /api/domain/participants/:id
 //   PUT    /api/domain/seats/:seatId/participant      { participantId | null }  frees the seat from its holder first
 //   GET    /api/domain/participants/export.xlsx       workbook: Participants + Seats (WO-085, every system)
 //   POST   /api/domain/participants/import?apply=0|1&remove=0|1   raw .xlsx / .csv body → { plan, result? }
 // DCN (WO-062): seat ids are DCN seat numbers; calls go to control.DiscussionApi / control.VoteApi with participantId 0.
+// CCS 1000 D (DEC-032): runs the wireless implementation unless an action gives its own `ccs1000` (null = not supported).
 import express from 'express';
 import { AppError, ok } from '../lib/errors.js';
-import { capabilities } from './mappers.js';
+import { createDomainActions } from './actions.js';
 import { applyImport, exportSheets, planImport } from './participants-io.js';
 import { readTable, writeXlsx } from '../lib/xlsx.js';
 
@@ -37,118 +38,26 @@ const DCN_VOTING = { hold: 'control.VoteApi.HoldVoting', resume: 'control.VoteAp
  * @param {import('../state/cache.js').StateCache} deps.cache
  * @param {import('../wireless/poller.js').WirelessPoller} deps.poller
  * @param {import('../dcn/events.js').DcnEventBridge} [deps.dcnEvents]
+ * @param {import('../dicentis/service.js').DicentisFeatures} [deps.dicentis]  wired participant editing (DEC-034)
  */
-export function createDomainRouter({ manager, cache, poller, dcnEvents }) {
+export function createDomainRouter({ manager, cache, poller, dcnEvents, dicentis }) {
   const router = express.Router();
-
-  const notSupported = what => new AppError('NOT_SUPPORTED', `${what} is not supported by the connected ${manager.system} system`);
-  const features = () => capabilities(manager.system).features;
+  const { run, notSupported, features, wirelessId, dcnSeat, dcnCall, discussion } = createDomainActions({ manager, cache, poller, dcnEvents });
   const seatParam = req => {
     const id = req.params.seatId ?? req.body?.seatId;
     if (typeof id !== 'string' && typeof id !== 'number') throw new AppError('VALIDATION', 'seatId is required');
     return String(id);
   };
-  const wirelessId = id => {
-    if (!/^\d+$/.test(id)) throw new AppError('VALIDATION', `Wireless seat ids are integers (got "${id}")`);
-    return Number(id);
-  };
-  const dcnSeat = id => {
-    if (!/^\d+$/.test(id)) throw new AppError('VALIDATION', `DCN seat ids are integers (got "${id}")`);
-    return { participantId: 0, seatId: Number(id) };
-  };
-  /**
-   * One DCN-SW API call, then refresh what it changed (DCN may not echo events to the caller).
-   * `args` is a function so DCN-only validation (integer seat ids) runs only when a DCN system is connected.
-   */
-  const dcnCall = (key, args = () => ({})) => async c => {
-    const a = args();
-    await c.request(key, a);
-    await dcnEvents?.operationSucceeded(key, a);
-  };
-
-  /** Run the system-specific implementation. */
-  async function run({ wired, wireless, dcn }) {
-    const w = manager.wiredClient;
-    const wl = manager.wirelessClient;
-    const d = manager.dcnClient;
-    if (manager.dcnSmdClient) {
-      throw new AppError('NOT_SUPPORTED', 'The DCN meeting data stream (DCN-SWSMD) is read-only: LikeABosch can follow the meeting but not operate it');
-    }
-    if (d?.state === 'loggedIn') {
-      if (!dcn) throw notSupported('This action');
-      await dcn(d);
-    } else if (w?.state === 'loggedIn') {
-      if (!wired) throw notSupported('This action');
-      await wired(w);
-    } else if (wl?.state === 'loggedIn') {
-      if (!wireless) throw notSupported('This action');
-      await wireless(wl);
-      await poller.refreshAll(); // no events on wireless: refresh so SSE carries the result right away
-    } else {
-      throw new AppError('NOT_CONNECTED', 'Not connected to a DICENTIS system');
-    }
-  }
   const done = res => res.json(ok(null));
 
   router.get('/capabilities', (_req, res) => res.json(ok(cache.get('domain.capabilities')?.data ?? null)));
 
-  router.post('/discussion/speakers', async (req, res) => {
-    const seatId = seatParam(req);
-    await run({
-      wired: c => c.request('AddSeatToSpeakers', { seatId }),
-      wireless: c => c.request('POST', '/speakers', { body: [wirelessId(seatId)] }),
-      dcn: dcnCall('control.DiscussionApi.SpeakNow', () => dcnSeat(seatId)),
-    });
-    done(res);
-  });
-
-  router.delete('/discussion/speakers/:seatId', async (req, res) => {
-    const seatId = seatParam(req);
-    await run({
-      wired: c => c.request('RemoveSeatFromDiscussionList', { seatId }),
-      wireless: c => {
-        const prio = cache.get('wirelessSpeakers')?.data?.find(e => String(e.id) === seatId && e.prioOn);
-        return c.request('DELETE', `${prio ? '/priority' : '/speakers'}/${wirelessId(seatId)}`);
-      },
-      dcn: dcnCall('control.DiscussionApi.StopSpeaking', () => dcnSeat(seatId)),
-    });
-    done(res);
-  });
-
-  router.post('/discussion/requests', async (req, res) => {
-    const seatId = seatParam(req);
-    await run({
-      wireless: c => c.request('POST', '/waiting-list', { body: [wirelessId(seatId)] }).catch(err => {
-        // The WAP answers a bare 500 when its discussion mode (Override, Voice, PTT) has no waiting list (WO-075).
-        if (err.extra?.status === 500) {
-          throw new AppError('UPSTREAM_ERROR', 'The WAP refused the request: the waiting list is only available in discussion mode "Open" (WAP web UI → Prepare)', err.extra);
-        }
-        throw err;
-      }),
-      dcn: dcnCall('control.DiscussionApi.AppendRequestToSpeak', () => dcnSeat(seatId)),
-    });
-    done(res);
-  });
-
-  router.delete('/discussion/requests/:seatId', async (req, res) => {
-    const seatId = seatParam(req);
-    await run({
-      wired: c => c.request('RemoveSeatFromDiscussionList', { seatId }),
-      wireless: c => c.request('DELETE', `/waiting-list/${wirelessId(seatId)}`),
-      dcn: c => {
-        const respond = cache.get('dcnRequestsToRespond')?.data?.some(p => String(p.SeatId) === seatId);
-        return dcnCall(`control.DiscussionApi.${respond ? 'RemoveRequestToRespond' : 'RemoveRequestToSpeak'}`, () => dcnSeat(seatId))(c);
-      },
-    });
-    done(res);
-  });
-
-  for (const [action, op] of [['mute', 'DeactivateMicrophone'], ['unmute', 'ActivateMicrophone']]) {
-    router.post(`/discussion/speakers/:seatId/${action}`, async (req, res) => {
-      const seatId = seatParam(req);
-      await run({ wired: c => c.request(op, { seatId }) });
-      done(res);
-    });
+  router.post('/discussion/speakers', async (req, res) => { await discussion.addSpeaker(seatParam(req)); done(res); });
+  router.delete('/discussion/speakers/:seatId', async (req, res) => { await discussion.removeSpeaker(seatParam(req)); done(res); });
+  router.post('/discussion/requests', async (req, res) => { await discussion.addRequest(seatParam(req)); done(res); });
+  router.delete('/discussion/requests/:seatId', async (req, res) => { await discussion.removeRequest(seatParam(req)); done(res); });
+  for (const [action, muted] of [['mute', true], ['unmute', false]]) {
+    router.post(`/discussion/speakers/:seatId/${action}`, async (req, res) => { await discussion.mute(seatParam(req), muted); done(res); });
   }
 
   // Speech time of a speaker (DICENTIS 6.50: Increase/Decrease/ResetSpeechTime).
@@ -157,32 +66,13 @@ export function createDomainRouter({ manager, cache, poller, dcnEvents }) {
     const seatId = seatParam(req);
     const opName = SPEECH_TIME[req.params.action];
     if (!opName) throw new AppError('NOT_FOUND', `Unknown speech time action '${req.params.action}'`);
-    await run({ wired: c => c.request(opName, { seatId }) });
+    await discussion.speechTime(seatId, opName);
     done(res);
   });
 
-  router.delete('/discussion', async (_req, res) => {
-    await run({ wireless: c => c.request('DELETE', '/speakers'), dcn: dcnCall('control.DiscussionApi.CancelAll') });
-    done(res);
-  });
-
-  router.post('/discussion/priority/:seatId', async (req, res) => {
-    const seatId = seatParam(req);
-    await run({
-      wireless: c => c.request('POST', '/priority', { body: [wirelessId(seatId)] }),
-      dcn: dcnCall('control.DiscussionApi.SetChairmanPriority', () => ({ ...dcnSeat(seatId), priorityStatus: true })),
-    });
-    done(res);
-  });
-
-  router.delete('/discussion/priority/:seatId', async (req, res) => {
-    const seatId = seatParam(req);
-    await run({
-      wireless: c => c.request('DELETE', `/priority/${wirelessId(seatId)}`),
-      dcn: dcnCall('control.DiscussionApi.SetChairmanPriority', () => ({ ...dcnSeat(seatId), priorityStatus: false })),
-    });
-    done(res);
-  });
+  router.delete('/discussion', async (_req, res) => { await discussion.clear(); done(res); });
+  router.post('/discussion/priority/:seatId', async (req, res) => { await discussion.setPriority(seatParam(req), true); done(res); });
+  router.delete('/discussion/priority/:seatId', async (req, res) => { await discussion.setPriority(seatParam(req), false); done(res); });
 
   router.put('/power', async (req, res) => {
     const state = req.body?.state;
@@ -190,6 +80,7 @@ export function createDomainRouter({ manager, cache, poller, dcnEvents }) {
     await run({
       wired: state === 'standby' ? null : c => c.request('SetSystemPowerMode', { powerMode: state === 'on' ? 'poweredOn' : 'poweredOff' }),
       wireless: c => c.request('PUT', '/system/status', { body: { state: WIRELESS_POWER[state] } }),
+      ccs1000: state === 'off' ? null : c => c.request('PUT', '/system/status', { body: { state: WIRELESS_POWER[state] } }), // on / standby only
     });
     done(res);
   });
@@ -200,6 +91,7 @@ export function createDomainRouter({ manager, cache, poller, dcnEvents }) {
     await run({
       wired: c => c.request(WIRED_VOTING[action]),
       wireless: action in WIRELESS_VOTING ? c => c.request('PUT', '/voting/state', { body: { state: WIRELESS_VOTING[action] } }) : null,
+      ccs1000: null,
       dcn: action === 'open' ? c => {
         // DCN starts a voting by id: the selected one (VotingSelect) or the active one.
         const votingId = cache.get('dcnVoting')?.data?.votingId ?? cache.get('dcnActiveVoting')?.data?.votingId;
@@ -219,7 +111,7 @@ export function createDomainRouter({ manager, cache, poller, dcnEvents }) {
       if (!Number.isInteger(mode) || mode < 0 || mode > 5) throw new AppError('VALIDATION', 'mode must be 0..5');
       body.mode = mode;
     }
-    await run({ wireless: c => c.request('PUT', '/voting', { body }) });
+    await run({ wireless: c => c.request('PUT', '/voting', { body }), ccs1000: null });
     done(res);
   });
 
@@ -277,9 +169,15 @@ export function createDomainRouter({ manager, cache, poller, dcnEvents }) {
   // ---------------------------------------------------------------- participants (WO-084, DEC-023)
   // Wireless: the WAP database (POST/PUT/DELETE /participants). The WAP refuses a seat another participant holds
   // (400 "Seat already assigned", WO-075), so giving someone a seat first takes it from its holder.
-  const noWiredEditing = () => {
-    throw new AppError('NOT_SUPPORTED', 'The Conference Protocol can only read participants; editing them needs the DICENTIS .NET API (dicentis-bridge, planned in WO-081)');
+  // Wired (DEC-034): through the full DICENTIS API (dicentis-bridge) when it is connected and allows it; the Conference
+  // Protocol itself can only read participants.
+  const wiredEditing = fn => () => {
+    if (!dicentis?.features().participants) {
+      throw new AppError('NOT_SUPPORTED', 'Adding and editing participants on a wired DICENTIS needs the full DICENTIS API (dicentis-bridge on a Windows PC with the DICENTIS software, Settings → Connection) and a user with the "prepare participants" right. The Conference Protocol can only read participants.');
+    }
+    return fn(dicentis);
   };
+  const noWiredNfc = p => { if (p.nfc) throw new AppError('VALIDATION', 'NFC tags of DICENTIS participants are not set here (use the DICENTIS Meeting Application)'); };
   const wirelessPeople = () => cache.get('wirelessParticipants')?.data ?? [];
   const participantParam = id => {
     if (!/^\d+$/.test(String(id))) throw new AppError('VALIDATION', `Wireless participant ids are integers (got "${id}")`);
@@ -303,6 +201,10 @@ export function createDomainRouter({ manager, cache, poller, dcnEvents }) {
     }
     if (body?.seatId !== undefined) out.seatId = body.seatId === null ? null : String(body.seatId);
     if (body?.nfc !== undefined) out.nfc = body.nfc === null ? '' : String(body.nfc).trim();
+    if (body?.group !== undefined) {
+      if (body.group !== null && typeof body.group !== 'string') throw new AppError('VALIDATION', 'group must be text');
+      out.group = String(body.group ?? '').trim().slice(0, 100);
+    }
     return out;
   }
 
@@ -310,7 +212,8 @@ export function createDomainRouter({ manager, cache, poller, dcnEvents }) {
     const p = participantBody(req.body, true);
     let id = null;
     await run({
-      wired: noWiredEditing,
+      wired: wiredEditing(async d => { noWiredNfc(p); ({ id } = await d.createParticipant({ name: p.name, seatId: p.seatId ?? null, group: p.group })); }),
+      ccs1000: null,
       wireless: async c => {
         const seat = wirelessSeat(p.seatId ?? null);
         await freeSeat(c, seat);
@@ -324,10 +227,11 @@ export function createDomainRouter({ manager, cache, poller, dcnEvents }) {
   router.put('/participants/:id', async (req, res) => {
     const p = participantBody(req.body, false);
     await run({
-      wired: noWiredEditing,
+      wired: wiredEditing(d => { noWiredNfc(p); return d.updateParticipant(req.params.id, { name: p.name, group: p.group, seatId: p.seatId }); }),
+      ccs1000: null,
       wireless: async c => {
         const pid = participantParam(req.params.id);
-        const body = { ...p };
+        const { group: _group, ...body } = p; // the WAP has no group
         if (p.seatId !== undefined) {
           body.seatId = wirelessSeat(p.seatId);
           await freeSeat(c, body.seatId, pid);
@@ -340,7 +244,8 @@ export function createDomainRouter({ manager, cache, poller, dcnEvents }) {
 
   router.delete('/participants/:id', async (req, res) => {
     await run({
-      wired: noWiredEditing,
+      wired: wiredEditing(d => d.deleteParticipant(req.params.id)),
+      ccs1000: null,
       wireless: c => c.request('DELETE', `/participants/${participantParam(req.params.id)}`),
     });
     done(res);
@@ -351,7 +256,8 @@ export function createDomainRouter({ manager, cache, poller, dcnEvents }) {
     const participantId = req.body?.participantId ?? null;
     if (participantId !== null && typeof participantId !== 'string' && typeof participantId !== 'number') throw new AppError('VALIDATION', 'participantId must be an id or null');
     await run({
-      wired: noWiredEditing,
+      wired: wiredEditing(d => d.assignSeat(seatId, participantId === null ? null : String(participantId))),
+      ccs1000: null,
       wireless: async c => {
         const seat = wirelessId(seatId);
         const pid = participantId === null ? null : participantParam(participantId);
@@ -384,12 +290,19 @@ export function createDomainRouter({ manager, cache, poller, dcnEvents }) {
     let sheets;
     try { sheets = readTable(buf); } catch (err) { throw new AppError('VALIDATION', `Cannot read the file: ${err.message}`); }
     const wirelessSystem = manager.system === 'wireless';
-    const plan = planImport(sheets, { ...currentPeople(), remove: req.query.remove === '1', maxName: wirelessSystem ? 32 : Infinity });
+    const plan = planImport(sheets, { ...currentPeople(), remove: req.query.remove === '1', maxName: wirelessSystem ? 32 : 100, groups: manager.system === 'wired' });
     if (req.query.apply !== '1') return res.json(ok({ plan }));
     if (plan.errors.length) throw new AppError('VALIDATION', 'The file has errors: fix them and import again', { details: plan.errors.map(e => `${e.line ? `row ${e.line}: ` : ''}${e.message}`) });
     let result = null;
     await run({
-      wired: noWiredEditing,
+      wired: wiredEditing(async d => {
+        result = await applyImport(plan, {
+          create: c => d.createParticipant({ name: c.name, seatId: c.seatId, group: c.group }),
+          update: (id, f) => d.updateParticipant(id, { name: f.name, group: f.group, seatId: f.seatId }),
+          remove: id => d.deleteParticipant(id),
+        });
+      }),
+      ccs1000: null,
       wireless: async c => {
         const body = f => ({ ...f, ...(f.seatId !== undefined ? { seatId: wirelessSeat(f.seatId) } : {}) });
         result = await applyImport(plan, {

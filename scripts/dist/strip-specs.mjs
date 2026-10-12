@@ -33,7 +33,7 @@ export function stripType(t) {
 }
 
 /** Swagger 2.0: operation / parameter / response / schema texts; schema property maps are walked by value. */
-export function stripSwagger(doc) {
+export function stripSwagger(doc, title = 'DICENTIS Wireless REST API (interface only)') {
   const out = structuredClone(doc);
   const schema = s => {
     if (!s || typeof s !== 'object') return;
@@ -44,7 +44,7 @@ export function stripSwagger(doc) {
     for (const k of ['allOf', 'anyOf', 'oneOf']) (s[k] ?? []).forEach(schema);
   };
   const param = p => { del(p, 'description', 'x-example'); schema(p.schema); schema(p.items); };
-  if (out.info) out.info = { title: 'DICENTIS Wireless REST API (interface only)', version: out.info.version };
+  if (out.info) out.info = { title, version: out.info.version };
   out.tags = (out.tags ?? []).map(t => ({ name: t.name }));
   delete out.externalDocs;
   for (const item of Object.values(out.paths ?? {})) {
@@ -81,6 +81,9 @@ export function stripSpecs(from, to) {
   put('wireless-rest/swagger.json', stripSwagger(read(join(from, 'wireless-rest/swagger.json'))));
   cpSync(join(from, 'wireless-rest/undocumented.json'), join(to, 'wireless-rest/undocumented.json')); // our own (DEC-024)
   written.push('wireless-rest/undocumented.json');
+  if (existsSync(join(from, 'ccs1000-rest/swagger.json'))) { // CCS 1000 D (DEC-032)
+    put('ccs1000-rest/swagger.json', stripSwagger(read(join(from, 'ccs1000-rest/swagger.json')), 'CCS 1000 D REST API (interface only)'));
+  }
   for (const f of ['dcn-swapi/api.json', 'dcn-swapi/types.json', 'dcn-swapi/dll-additions.json', 'dcnm-api/api.json', 'dcnm-api/types.json']) {
     if (existsSync(join(from, f))) put(f, stripApi(read(join(from, f))));
   }

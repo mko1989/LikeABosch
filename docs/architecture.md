@@ -1,7 +1,7 @@
 # Architecture
 
 Status: initial design (2026-10-02, WO-001); wired backend implemented through WO-013; DCN (third system) from WO-059 (DEC-017);
-full DICENTIS DCNM API through the dicentis-bridge from WO-077 (DEC-021). Keep this file current: when a WO changes the
+full DICENTIS DCNM API through the dicentis-bridge from WO-077 (DEC-021); CCS 1000 D on the wireless adapter from WO-111 (DEC-032). Keep this file current: when a WO changes the
 structure, update this file in the same WO and log it.
 
 ## Overview
@@ -15,9 +15,11 @@ structure, update this file in the same WO and log it.
  │   ├─ /api/connection     connect / disconnect / status / settings             │
  │   ├─ /api/wired/ops/:Op  passthrough, 1 endpoint per Conference Protocol op   │
  │   ├─ /api/wireless/...   passthrough mirroring the Swagger paths              │
+ │   ├─ /api/ccs1000/...    the same for a CCS 1000 D (own swagger, DEC-032)     │
  │   ├─ /api/dcn/ops/:api/:method  passthrough, 1 endpoint per DCN-SW API method │
  │   ├─ /api/dcnm/ops/:api/:method passthrough to the DICENTIS DCNM API (bridge) │
  │   ├─ /api/<domain>       unified, system-independent API used by the UI       │
+ │   ├─ /api/quick/...      quick actions + compact SSE for Companion (DEC-035)   │
  │   └─ /api/events         SSE: { topic, data } state updates                   │
  │                                                                                 │
  │  domain/  ── maps unified calls to the active adapter, owns capability flags  │
@@ -53,15 +55,20 @@ backend/
     config.js             env + data/settings.json
     lib/                  logger, errors (envelope + codes), sse hub, event bus, bridge-socket (NDJSON bridge transport), xlsx (own XLSX/CSV reader+writer, DEC-023)
     wired/                client.js, spec.js (shared with mock), routes.js, events.js (event bridge)
-    wireless/             client.js, routes.js, poller.js; spec.js loads swagger.json + undocumented.json (WAP web UI endpoints, DEC-024)
+    wireless/             client.js, routes.js, poller.js; spec.js loads swagger.json + undocumented.json (WAP web UI endpoints, DEC-024);
+                          also the CCS 1000 D (ccs1000-rest/swagger.json, topics.js CCS_TOPICS, DEC-032)
     dcn-smd/              DCN Streaming Meeting Data (DEC-018): xml.js, frames.js, client.js, state.js (activities → state), sync.js (→ smd* topics, persisted), routes.js
     dcn/                  client.js (dcn-bridge TCP/NDJSON), spec.js, topics.js, events.js (event → refetch → dcn* topics), routes.js (DEC-017)
     dcnm/                 DICENTIS DCNM API via the dicentis-bridge (DEC-021): client.js, spec.js, mirror.js (event → dcnm.<Api>.<Event> topics, sweep), routes.js
-    dicentis/             DICENTIS-only features over the DCNM API (DEC-029): service.js (dicentis.* topics), audio.js (WO-081), languages.js (WO-102), routes.js (/api/dicentis/*)
+                          shape.js: DCNM data classes cut to a constructor, as the bridge builds them (WO-115)
+    dicentis/             DICENTIS-only features over the DCNM API (DEC-029): service.js (dicentis.* topics), audio.js (WO-081), languages.js (WO-102),
+                          participants.js (wired participant editing for the domain actions, DEC-034), routes.js (/api/dicentis/*)
     connection/           manager.js (settings precedence env > file, active client), routes.js
     state/                cache.js (topics + unavailable reasons; LikeABosch's own topics survive a disconnect), routes.js (/api/events SSE, /api/state)
-    domain/               unified API (WO-017); participant editing + Excel import/export (participants-io.js, DEC-023)
-    devices/              cameras/ (visca, panasonic, onvif, mock), switchers/ (atem, mock), discovery/mdns.js (ATEM autodiscovery, WO-090), manager.js, routes.js (DEC-012)
+    domain/               unified API (WO-017); actions.js = run() + discussion actions shared with quick/; participant editing +
+                          Excel import/export (participants-io.js, DEC-023)
+    quick/                quick-actions API for Bitfocus Companion (DEC-035): /api/quick (state, SSE, seat mic/request/priority)
+    devices/              cameras/ (visca, panasonic, onvif, mock), switchers/ (atem, kramer MV-6, tvone CORIO, mock; DEC-033), discovery/mdns.js (ATEM autodiscovery, WO-090), manager.js, routes.js (DEC-012)
     simulation/           simulator.js: simulated systems = the mocks started in-process (DEC-026, WO-095); the launcher can start one (LIKEABOSCH_SIMULATE, WO-098)
     companion/            Bitfocus Companion (DEC-027, WO-099): client.js (HTTP remote control), service.js (mic on/off edges → button presses), routes.js
     room/                 room layout store + API (outline, floor plan, seat/camera/interpreter-desk placements, shots, director settings)
@@ -69,13 +76,16 @@ backend/
   test/                   node:test suites (unit + against mocks)
 mock/
   wired/                  WSS mock server (self-signed cert), behaviours/ per area
-  wireless/               HTTP mock server
+  wireless/               HTTP mock server (WAP; `variant: 'ccs1000'` = a CCS 1000 D control unit, DEC-032)
   dcn/                    mock dcn-bridge (bridge protocol) + simulated DCN-SW server
   dcn-smd/                mock DCN-SW server Streaming Meeting Data (queue + replay, AllowedClients)
-  dcnm/                   mock dicentis-bridge (bridge protocol, spec-driven DCNM API); behaviours.js = stateful audio, seats, languages,
-                          desks, presentation (WO-101); wired-link.js = the same DICENTIS "database" as a wired mock (simulation, DEC-029 §4)
+  dcnm/                   mock dicentis-bridge (bridge protocol, spec-driven DCNM API; data-class arguments checked against the
+                          constructors like the real bridge, `strictApis`); behaviours.js = stateful audio, seats, languages, desks,
+                          presentation (WO-101), persons + participants (WO-106); wired-link.js = the same DICENTIS "database" as a
+                          wired mock (simulation, DEC-029 §4)
   companion/              mock Bitfocus Companion HTTP API (+ /tablet page with the same geometry)
   cameras/                VISCA (UDP/TCP, Sony/raw), Panasonic AW HTTP, ONVIF SOAP protocol mocks
+  switchers/              Kramer MV-6 (Protocol 3000) and tvONE CORIO (CORIOmaster API) TCP mocks (WO-112)
 web/
   index.html, css/app.css app shell + design tokens
   js/                     main, api, store(+store-core, live-stream: self-healing SSE, WO-109), router (areas Room / Meeting / Settings, DEC-014), dom (DEC-009),
@@ -84,9 +94,13 @@ web/
                           companion.js (inspector section + button picker, WO-099), camera-aim.js (camera turn + colours, WO-103),
                           voting-controls.js, dicentis-audio.js / dicentis-languages.js (DEC-029 UI), widgets/ (Room widget dock, DEC-030); views/<name>.js
                           (views/wap-*.js: DICENTIS Wireless configuration via the WAP web UI API, WO-086…089)
+                          (views/ccs-microphones.js: CCS 1000 D microphone sensitivity, WO-111)
                           (views/dcn.js: Settings → DCN, WO-063)
   test/                   node:test for pure modules
-launcher/                 Electron launcher (DEC-008), own package.json; build/icon.svg + icon.png = app icon for the installers (WO-100)
+launcher/                 Electron launcher (DEC-008), own package.json; build/icon.svg + icon.png = app icon for the installers (WO-100);
+                          lib/bosch-apis.js finds installed Bosch DLLs, their bridges start with the app (DEC-037)
+companion-module-dev/     Bitfocus Companion modules (DEC-036): companion-module-bosch-discussion-system (direct, network APIs) and
+                          companion-module-likeabosch (through /api/quick + bridges); the user's older modules there are not tracked
 bridge/common/            transport (TCP/NDJSON server), JSON, value conversion shared by both bridges (DEC-021)
 bridge/dcn/               dcn-bridge: Windows .NET 4.8 host for the DCN-SW API DLLs, reflection dispatch (DEC-017, WO-061)
 bridge/dicentis/          dicentis-bridge: Windows .NET 4.8 host for the DICENTIS DCNM API DLLs (DEC-021, WO-078)
@@ -120,6 +134,13 @@ delay, minimum shot, travel time; DEC-031: overview at once, off-air cameras pre
 `POST http://<companion>/api/location/<page>/<row>/<column>/<press|down|up>` in order. Target in the project's
 `devices.json` (`companion`), status + log as topic `devices.companion`. The picker frames Companion's `/tablet` page
 (CSP `frame-src http: https:`) under a click grid.
+
+## CCS 1000 D (DEC-032)
+The CCSD-CU speaks the WAP's REST dialect (API 1.8: no participants, no voting, plus microphone sensitivity). System
+type `ccs1000` = `WirelessClient` (product "CCS 1000 D") + `WirelessPoller` with `CCS_TOPICS`; raw topics keep the
+`wireless*` names, the `ccs1000` domain mappers override what differs; `/api/ccs1000` is the passthrough with the CCS
+spec; domain actions run the wireless implementation unless they name a `ccs1000` one (`null` = not supported).
+UI: capability flags hide voting / participants / WAP configuration; Settings → Microphones (`micSensitivity`).
 
 ## DCN (DEC-017)
 ```

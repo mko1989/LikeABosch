@@ -4,7 +4,7 @@ const $ = id => document.getElementById(id);
 const form = $('settings');
 const field = name => form.elements.namedItem(name);
 
-const DEFAULT_PORTS = { wired: 31416, wireless: 80, dcn: 9480, 'dcn-smd': 20000 };
+const DEFAULT_PORTS = { wired: 31416, wireless: 80, dcn: 9480, 'dcn-smd': 20000, ccs1000: 80 };
 const SERVER_LABELS = { stopped: 'stopped', starting: 'starting…', running: 'running', stopping: 'stopping…', crashed: 'crashed' };
 const BRIDGE_LABELS = { starting: 'starting…', running: 'running', crashed: 'crashed', stopping: 'stopping…', stopped: 'stopped', missing: 'not found' };
 const DICENTIS_LABELS = {
@@ -55,6 +55,7 @@ function readForm() {
     dcnmDllDir: field('dcnmDllDir').value.trim(),
     dcnBridgeDllDir: field('dcnBridgeDllDir').value.trim(),
     manageBridges: field('manageBridges').checked,
+    autoBridges: field('autoBridges').checked,
     dcnmExe: field('dcnmExe').value.trim(),
     dcnBridgeExe: field('dcnBridgeExe').value.trim(),
     simulate: field('simulate').value,
@@ -142,10 +143,16 @@ function renderBridges(list) {
     const pill = document.createElement('span');
     pill.className = 'pill';
     pill.dataset.state = b.state === 'running' ? 'loggedIn' : b.state === 'crashed' || b.state === 'missing' ? 'error' : b.state === 'starting' ? 'connecting' : 'disconnected';
-    pill.textContent = `${b.name}: ${BRIDGE_LABELS[b.state] ?? b.state}`;
+    pill.textContent = `${b.name}${b.auto ? ' (auto)' : ''}: ${BRIDGE_LABELS[b.state] ?? b.state}`;
     pill.title = b.error ?? (b.port ? `127.0.0.1:${b.port}` : '');
     return pill;
   }));
+}
+
+/** Which Bosch software the launcher found (DEC-037; Windows only). */
+function renderFound(found) {
+  const names = [found?.dicentis && `DICENTIS software (${found.dicentis.dllDir})`, found?.dcn && `DCN-SW (${found.dcn.dllDir})`].filter(Boolean);
+  $('bosch-found').textContent = names.length ? `Found on this PC: ${names.join(', ')}. Its bridge starts with the launcher.` : 'No Bosch software (DICENTIS, DCN-SW) found on this PC.';
 }
 
 function appendLog(line) {
@@ -198,9 +205,11 @@ api.onServerState(renderServer);
 api.onLog(appendLog);
 api.onDicentisStatus(renderDicentis);
 api.onBridges(renderBridges);
+api.onBoschFound(renderFound);
 
 fill(await api.getSettings());
 const status = await api.serverStatus();
 renderServer(status);
 status.log.forEach(appendLog);
 renderBridges(await api.bridgesStatus());
+renderFound(await api.boschFound());

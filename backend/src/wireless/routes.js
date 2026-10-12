@@ -3,6 +3,7 @@
 //   <METHOD> /api/wireless/<swagger path>   e.g. POST /api/wireless/speakers  [3, 4]
 //   Also the curated undocumented WAP web UI paths (undocumented.json, DEC-024), e.g. PUT /api/wireless/discuss.
 //   POST /api/wireless/upgrades/file?name=<file name>   raw file body → multipart "firmware" to the WAP (DEC-024)
+// The same router serves a CCS 1000 D under /api/ccs1000 with its own spec (DEC-032; no upload route there).
 import express from 'express';
 import { AppError, ok } from '../lib/errors.js';
 import { validateSchema } from './spec.js';
@@ -14,8 +15,11 @@ const MANAGED = new Set(['POST /login', 'POST /logout']);
  * @param {ReturnType<import('./spec.js').loadWirelessSpec>} deps.spec
  * @param {() => import('./client.js').WirelessClient | null} deps.getClient
  * @param {(op: import('./spec.js').WirelessOperation) => void} [deps.onSuccess]
+ * @param {string} [deps.product]   name in "not connected" messages
+ * @param {boolean} [deps.uploads]  the WAP's file upload route (DEC-024)
  */
-export function createWirelessRouter({ spec, getClient, onSuccess }) {
+export function createWirelessRouter({ spec, getClient, onSuccess, product = 'DICENTIS Wireless', uploads = true }) {
+  const notConnected = () => new AppError('NOT_CONNECTED', `Not connected to a ${product} system`);
   const router = express.Router();
 
   router.get('/ops', (_req, res) => res.json(ok(spec.operations.map(op => ({
@@ -24,12 +28,12 @@ export function createWirelessRouter({ spec, getClient, onSuccess }) {
   })))));
 
   // Firmware or seat display image (PNG) upload, the way the WAP's web UI does it (FileUploader, field "firmware").
-  router.post('/upgrades/file', express.raw({ type: () => true, limit: '64mb' }), async (req, res) => {
+  if (uploads) router.post('/upgrades/file', express.raw({ type: () => true, limit: '64mb' }), async (req, res) => {
     const name = String(req.query.name ?? '').trim();
     if (!name || /[\\/]/.test(name)) throw new AppError('VALIDATION', 'name (the file name, e.g. logo.png) is required');
     if (!Buffer.isBuffer(req.body) || !req.body.length) throw new AppError('VALIDATION', 'Send the file as the request body');
     const client = getClient();
-    if (!client || client.state !== 'loggedIn') throw new AppError('NOT_CONNECTED', 'Not connected to a DICENTIS Wireless system');
+    if (!client || client.state !== 'loggedIn') throw notConnected();
     const form = new FormData();
     form.append('firmware', new Blob([req.body]), name);
     await client.request('POST', '/upgrades/file', { body: form, timeoutMs: 300_000 });
@@ -54,7 +58,7 @@ export function createWirelessRouter({ spec, getClient, onSuccess }) {
       if (problems.length) throw new AppError('VALIDATION', `Invalid body for ${op.id}`, { details: problems });
     }
     const client = getClient();
-    if (!client || client.state !== 'loggedIn') throw new AppError('NOT_CONNECTED', 'Not connected to a DICENTIS Wireless system');
+    if (!client || client.state !== 'loggedIn') throw notConnected();
     // Express 5 leaves req.body undefined when no body was sent.
     const data = await client.request(op.method, req.path, op.bodySchema && req.body !== undefined ? { body: req.body } : {});
     if (op.method !== 'GET') onSuccess?.(op);

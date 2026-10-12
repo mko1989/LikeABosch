@@ -1,6 +1,8 @@
-// Switcher driver factory + in-memory mock switcher (WO-037, DEC-012).
+// Switcher driver factory + in-memory mock switcher (WO-037, DEC-012); Kramer MV-6 and tvONE CORIO (WO-112, DEC-033).
 import { EventEmitter } from 'node:events';
 import { AtemSwitcher } from './atem.js';
+import { KramerSwitcher } from './kramer.js';
+import { TvOneSwitcher } from './tvone.js';
 
 /** In-memory switcher with 8 inputs (demos, tests, UI work without hardware). */
 export class MockSwitcher extends EventEmitter {
@@ -34,6 +36,8 @@ export class MockSwitcher extends EventEmitter {
 
 export const SWITCHER_DRIVERS = {
   atem: o => new AtemSwitcher(o),
+  'kramer-mv6': o => new KramerSwitcher(o),
+  'tvone-corio': o => new TvOneSwitcher(o),
   mock: o => new MockSwitcher(o),
 };
 

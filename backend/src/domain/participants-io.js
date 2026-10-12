@@ -52,6 +52,8 @@ const HEADERS = {
   seat: ['seat', 'seatname', 'seatid', 'seatnumber'],
   nfc: ['nfc', 'nfctag', 'nfcid', 'badge', 'card'],
   id: ['id', 'participantid'],
+  // WO-106: imported where the system stores a group (wired DICENTIS: the person's Group)
+  group: ['group', 'affiliation', 'organisation', 'organization', 'party', 'delegation', 'company'],
 };
 const norm = v => String(v ?? '').toLowerCase().replace(/[^a-z]/g, '');
 const cellText = v => (v === null || v === undefined ? '' : typeof v === 'number' ? String(v) : String(v)).trim();
@@ -59,9 +61,10 @@ const cellText = v => (v === null || v === undefined ? '' : typeof v === 'number
 /**
  * Turn an uploaded workbook into a change plan against the current participants. Nothing is changed here.
  * @param {{ name: string, rows: any[][] }[]} sheets
- * @param {{ participants: Participant[], seats: Seat[], remove?: boolean, maxName?: number }} current
+ * @param {{ participants: Participant[], seats: Seat[], remove?: boolean, maxName?: number, groups?: boolean }} current
+ *   `groups`: the system stores a group per participant, so a Group / Affiliation column is imported (else ignored).
  */
-export function planImport(sheets, { participants, seats, remove = false, maxName = Infinity }) {
+export function planImport(sheets, { participants, seats, remove = false, maxName = Infinity, groups = false }) {
   const errors = [];
   const warnings = [];
   const sheet = sheets.find(s => norm(s.name) === 'participants') ?? sheets.find(s => s.rows.some(r => r.some(c => cellText(c)))) ?? null;
@@ -79,7 +82,11 @@ export function planImport(sheets, { participants, seats, remove = false, maxNam
     if (found.name !== undefined) { headerAt = r; col = found; }
   }
   if (headerAt < 0) { errors.push({ line: null, message: `Sheet "${sheet.name}" has no "Name" column header` }); return plan; }
-  plan.columns = { name: true, seat: col.seat !== undefined, nfc: col.nfc !== undefined, id: col.id !== undefined };
+  plan.columns = { name: true, seat: col.seat !== undefined, nfc: col.nfc !== undefined, id: col.id !== undefined, group: groups && col.group !== undefined };
+  if (col.group !== undefined && !groups) {
+    warnings.push({ line: null, message: `Column "${cellText(sheet.rows[headerAt][col.group])}" is ignored: the connected system has no group per participant` });
+    delete col.group;
+  }
 
   const seatByKey = new Map();
   for (const s of seats) { seatByKey.set(s.id.toLowerCase(), s); seatByKey.set(s.name.trim().toLowerCase(), s); }
@@ -127,14 +134,18 @@ export function planImport(sheets, { participants, seats, remove = false, maxNam
     if (p && matched.has(p.id)) return errors.push({ line, message: `"${name}": ID ${idText} is used twice` });
     if (!p) p = participants.find(x => !matched.has(x.id) && x.name.trim().toLowerCase() === lower);
     if (p) matched.add(p.id);
-    rows.push({ line, p, name, seatId, nfc });
+    rows.push({ line, p, name, seatId, nfc, group: get('group') });
   });
 
   const seatName = id => seats.find(s => s.id === id)?.name ?? id;
-  for (const { line, p, name, seatId, nfc } of rows) {
-    if (!p) { plan.creates.push({ line, name, seatId: seatId ?? null, seatName: seatId ? seatName(seatId) : null, nfc: nfc ?? '' }); continue; }
+  for (const { line, p, name, seatId, nfc, group } of rows) {
+    if (!p) {
+      plan.creates.push({ line, name, seatId: seatId ?? null, seatName: seatId ? seatName(seatId) : null, nfc: nfc ?? '', ...(group !== undefined ? { group } : {}) });
+      continue;
+    }
     const to = {};
     if (p.name !== name) to.name = name;
+    if (group !== undefined && (p.group ?? '') !== group) to.group = group;
     if (seatId !== undefined && (p.assignedSeatId ?? null) !== seatId) to.seatId = seatId;
     if (nfc !== undefined && (p.nfc ?? '') !== nfc) to.nfc = nfc;
     if (!Object.keys(to).length) { plan.unchanged++; continue; }
@@ -162,8 +173,8 @@ export const planSize = plan => plan.creates.length + plan.updates.length + plan
  * Execute a plan: deletes → free seats / NFC tags that move → updates → creates (so the system never sees a seat or
  * tag held twice). Stops at the first refused write.
  * @param {ReturnType<typeof planImport>} plan
- * @param {{ create: (p: { name: string, seatId: string | null, nfc: string }) => Promise<unknown>,
- *   update: (id: string, fields: { name?: string, seatId?: string | null, nfc?: string }) => Promise<unknown>,
+ * @param {{ create: (p: { name: string, seatId: string | null, nfc: string, group?: string }) => Promise<unknown>,
+ *   update: (id: string, fields: { name?: string, seatId?: string | null, nfc?: string, group?: string }) => Promise<unknown>,
  *   remove: (id: string) => Promise<unknown> }} ops
  * @returns {Promise<{ done: number, total: number, error?: { message: string, step: string } }>}
  */
@@ -182,7 +193,7 @@ export async function applyImport(plan, ops) {
     if (fields.nfc === '' && u.from.nfc) delete fields.nfc;
     if (Object.keys(fields).length) steps.push([`update ${u.name}`, () => ops.update(u.id, fields)]);
   }
-  for (const c of plan.creates) steps.push([`create ${c.name}`, () => ops.create({ name: c.name, seatId: c.seatId, nfc: c.nfc })]);
+  for (const c of plan.creates) steps.push([`create ${c.name}`, () => ops.create({ name: c.name, seatId: c.seatId, nfc: c.nfc, ...(c.group !== undefined ? { group: c.group } : {}) })]);
   let done = 0;
   for (const [step, run] of steps) {
     try { await run(); } catch (err) { return { done, total: steps.length, error: { message: err.message, step } }; }

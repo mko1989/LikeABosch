@@ -122,6 +122,7 @@ describe('dicentis-bridge --fake (C#)', { skip: !dotnet && 'dotnet not installed
     assert.deepEqual(hello.interfaces.PrepareParticipant, { interface: 'IPrepareParticipant', source: 'implemented by PrepareParticipant2' });
     assert.deepEqual(hello.interfaces.ControlCamera, { interface: 'IControlCamera', source: 'property' });
     assert.equal(hello.constants['DcnmMicrophoneOptions.DEFAULT_OPEN_MICROPHONES'], 2);
+    assert.equal(hello.constants['MeetingConstants.PARTICIPANTGROUPID'], '00000000-0000-0000-0000-000000000000'); // Guid constants too (WO-106)
     assert.equal(hello.constants['DcnmAudioEqualizerSettings.EQUALIZER_DEFAULT_MIN_QFACTOR'], 0.4000000059604645);
     assert.deepEqual(hello.status.connection, { open: false, authenticated: false, device: 'Disconnected', enabled: false, apiState: 'Offline' });
 

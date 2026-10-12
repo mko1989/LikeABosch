@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('launcher', {
   launchGui: () => ipcRenderer.invoke('gui:launch'),
   bridgesStatus: () => ipcRenderer.invoke('bridges:status'),
   onBridges: on('bridges:state'),
+  boschFound: () => ipcRenderer.invoke('bosch:found'),
+  onBoschFound: on('bosch:found'),
   onServerState: on('server:state'),
   onLog: on('server:log'),
   onDicentisStatus: on('dicentis:status'),

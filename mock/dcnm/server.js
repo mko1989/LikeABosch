@@ -15,11 +15,44 @@ const HIDDEN = new Set(['CancellationToken']);
 /** Where the dicentis-bridge finds the documented interfaces without a property (as in its fake). */
 const IMPLEMENTED_BY = { RoomAudioControl: 'SystemAudioControlApi', PrepareParticipant: 'PrepareParticipant2' };
 const isDelegate = (spec, type) => type in spec.types.delegates;
+/** The participant user group of the simulation (MeetingConstants.PARTICIPANTGROUPID on a real system, WO-106). */
+export const PARTICIPANT_GROUP_ID = '5a1d0000-0000-4000-8000-00000000c0de';
+const LIST = /^(?:IList|List|ICollection|IEnumerable|Collection|IReadOnlyList|ReadOnlyCollection)<(.+)>$/;
 
 /**
- * @param {{ port?: number, host?: string, users?: Record<string, string>, token?: string, world?: ReturnType<typeof createDcnmWorld>, vuIntervalMs?: number }} [options]
+ * The real bridge builds a DCNM data class without a parameterless constructor through the constructor whose parameters
+ * are all in the JSON object, and refuses members left over (the properties are read-only) (bridge/common/ClrConvert.cs).
+ * Same check here, recursively, so a payload the real bridge would refuse fails in the tests too (WO-106).
  */
-export async function createMockDcnmBridge({ port = 0, host = '127.0.0.1', users = { admin: 'admin' }, token = '', world = null, vuIntervalMs = 200 } = {}) {
+function checkShape(spec, type, value, path) {
+  const list = LIST.exec(type);
+  if (list) {
+    if (!Array.isArray(value)) fail('BAD_ARGS', `${path}: expected a list`);
+    value.forEach((v, i) => checkShape(spec, list[1], v, `${path}[${i}]`));
+    return;
+  }
+  const cls = spec.types.classes[type];
+  if (!cls || value === null) return;
+  if (typeof value !== 'object' || Array.isArray(value)) fail('BAD_ARGS', `${path}: ${type} must be an object`);
+  const ctors = cls.constructors ?? [];
+  if (!ctors.length || ctors.some(c => !(c.params ?? []).length)) return; // settable properties: not checked
+  const keys = new Map(Object.keys(value).map(k => [k.toLowerCase(), k]));
+  const ctor = ctors.find(c => (c.params ?? []).every(p => keys.has(p.name.toLowerCase())) && [...keys.keys()].every(k => c.params.some(p => p.name.toLowerCase() === k)));
+  if (!ctor) {
+    fail('BAD_ARGS', `${path}: ${type} needs exactly the members of one of its constructors: ${ctors.map(c => `(${(c.params ?? []).map(p => p.name).join(', ')})`).join(' | ')}; got (${Object.keys(value).join(', ')})`);
+  }
+  for (const p of ctor.params) checkShape(spec, p.type, value[keys.get(p.name.toLowerCase())], `${path}.${p.name}`);
+}
+
+function fail(code, message) { const e = new Error(message); e.code = code; throw e; }
+
+/**
+ * @param {{ port?: number, host?: string, users?: Record<string, string>, token?: string, world?: ReturnType<typeof createDcnmWorld>, vuIntervalMs?: number,
+ *   strictApis?: string[] | true }} [options]  strictApis: interfaces whose data-class arguments must have a constructor's
+ *   exact members, as the real bridge needs (checkShape). Default: the participant interfaces (WO-106); `true` = all
+ *   (WO-115 fixes the audio / language payloads that still fail it).
+ */
+export async function createMockDcnmBridge({ port = 0, host = '127.0.0.1', users = { admin: 'admin' }, token = '', world = null, vuIntervalMs = 200, strictApis = true } = {}) {
   const spec = loadDcnmSpec();
   // Keys as the real bridge finds them: properties + the documented interfaces without one (IPluginInstance only as handle).
   const keys = [...spec.interfaces.keys()].filter(k => k !== 'PluginInstance' && k !== 'Capabilities');
@@ -64,8 +97,6 @@ export async function createMockDcnmBridge({ port = 0, host = '127.0.0.1', users
     return null;
   }
 
-  const fail = (code, message) => { const e = new Error(message); e.code = code; throw e; };
-
   function choose(api, method, args) {
     const overloads = spec.overloads(api, method);
     if (!overloads.length) fail('UNKNOWN_METHOD', `no method ${api}.${method}`);
@@ -84,6 +115,9 @@ export async function createMockDcnmBridge({ port = 0, host = '127.0.0.1', users
       api = h.key;
     } else if (!keys.includes(api)) fail('UNKNOWN_API', `no interface ${api}`);
     const m = choose(api, method, args);
+    if (strictApis === true || strictApis.includes(api)) {
+      for (const p of m.params) if (p.name in args) checkShape(spec, p.type, args[p.name], `${api}.${method}(${p.name})`);
+    }
     state.calls.push({ api, method, args });
     if (world && state.authenticated) {
       const handled = handleCall(world, api, method, args, event);
@@ -226,7 +260,7 @@ export async function createMockDcnmBridge({ port = 0, host = '127.0.0.1', users
             type: 'hello', ok: true, protocol: 1,
             bridge: { name: 'dicentis-bridge', version: '0.1.0-mock', apiVersion: '7.0.43431.0', fake: true, dllPath: null, runtime: 'node mock', is64Bit: true },
             interfaces: Object.fromEntries(keys.map(k => [k, { interface: spec.get(k).interface, source: IMPLEMENTED_BY[k] ? `implemented by ${IMPLEMENTED_BY[k]}` : 'property' }])),
-            constants: { 'DcnmMicrophoneOptions.DEFAULT_OPEN_MICROPHONES': 2 },
+            constants: { 'DcnmMicrophoneOptions.DEFAULT_OPEN_MICROPHONES': 2, 'MeetingConstants.PARTICIPANTGROUPID': PARTICIPANT_GROUP_ID },
             status: status(),
           });
           continue;

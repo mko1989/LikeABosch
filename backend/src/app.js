@@ -7,6 +7,8 @@ import { createStateRouter } from './state/routes.js';
 import { createConnectionRouter } from './connection/routes.js';
 import { createWirelessRouter } from './wireless/routes.js';
 import { createDomainRouter } from './domain/routes.js';
+import { createDomainActions } from './domain/actions.js';
+import { createQuickRouter } from './quick/routes.js';
 import { createDcnRouter } from './dcn/routes.js';
 import { createDcnSmdRouter } from './dcn-smd/routes.js';
 import { createDcnmRouter } from './dcnm/routes.js';
@@ -29,6 +31,7 @@ const WEB_DIR = fileURLToPath(new URL('../../web/', import.meta.url));
  * @param {import('./wired/events.js').WiredEventBridge} [deps.services.bridge]
  * @param {import('./wireless/poller.js').WirelessPoller} [deps.services.poller]
  * @param {ReturnType<import('./wireless/spec.js').loadWirelessSpec>} deps.services.wirelessSpec
+ * @param {ReturnType<import('./wireless/spec.js').loadWirelessSpec>} [deps.services.ccsSpec]  CCS 1000 D (DEC-032)
  * @param {ReturnType<import('./dcn/spec.js').loadDcnSpec>} [deps.services.dcnSpec]
  * @param {import('./dcn/events.js').DcnEventBridge} [deps.services.dcnEvents]
  * @param {ReturnType<import('./dcnm/spec.js').loadDcnmSpec>} [deps.services.dcnmSpec]
@@ -43,17 +46,20 @@ export function createApp({ config, log, services }) {
 
   const api = express.Router();
   api.get('/health', (_req, res) => res.json(ok({ status: 'up', system: config.dicentis.system })));
-  const { spec, wirelessSpec, dcnSpec, dcnEvents, dcnSmd, dcnmSpec, dicentis, cache, hub, manager, bridge, poller, devices, room, projects } = services;
+  const { spec, wirelessSpec, ccsSpec, dcnSpec, dcnEvents, dcnSmd, dcnmSpec, dicentis, cache, hub, manager, bridge, poller, devices, room, projects } = services;
   api.use('/connection', createConnectionRouter({ manager }));
   api.use('/wired', createWiredRouter({ spec, getClient: () => manager.wiredClient, onSuccess: op => bridge?.operationSucceeded(op) }));
   // Wireless has no events: refresh all topics right after a write so the UI updates without waiting for the poll.
   api.use('/wireless', createWirelessRouter({ spec: wirelessSpec, getClient: () => manager.wirelessClient, onSuccess: () => poller?.refreshAll() }));
+  if (ccsSpec) api.use('/ccs1000', createWirelessRouter({ spec: ccsSpec, getClient: () => manager.ccs1000Client, onSuccess: () => poller?.refreshAll(), product: 'CCS 1000 D', uploads: false }));
   if (dcnSpec) api.use('/dcn', createDcnRouter({ spec: dcnSpec, getClient: () => manager.dcnClient, onSuccess: (key, args) => dcnEvents?.operationSucceeded(key, args) }));
   if (dcnSmd) api.use('/dcn-smd', createDcnSmdRouter({ sync: dcnSmd }));
   if (dcnmSpec) api.use('/dcnm', createDcnmRouter({ spec: dcnmSpec, getClient: () => manager.dcnmClient }));
   if (dicentis) api.use('/dicentis', createDicentisRouter({ features: dicentis })); // DEC-029
   api.use(createStateRouter({ cache, hub, getConnectionStatus: () => manager.status() }));
-  api.use('/domain', createDomainRouter({ manager, cache, poller, dcnEvents }));
+  api.use('/domain', createDomainRouter({ manager, cache, poller, dcnEvents, dicentis }));
+  // Quick actions for Bitfocus Companion (DEC-035)
+  api.use('/quick', createQuickRouter({ manager, cache, actions: createDomainActions({ manager, cache, poller, dcnEvents }) }));
   if (devices) api.use('/devices', createDevicesRouter({ devices }));
   if (room) api.use('/room', createRoomRouter({ room }));
   if (projects) api.use('/projects', createProjectsRouter({ projects }));

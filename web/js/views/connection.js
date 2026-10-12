@@ -3,8 +3,8 @@
 // instead of the configured system, and each simulated system has its own project (DEC-025).
 import { h, replace, humanize, toast, toastError, confirmAction } from '../dom.js';
 
-const SYSTEM_NAME = { wired: 'DICENTIS', wireless: 'DICENTIS Wireless', dcn: 'DCN', 'dcn-smd': 'DCN (meeting data)' };
-const DEFAULT_PORTS = { wired: 31416, wireless: 80, dcn: 9480, 'dcn-smd': 20000 };
+const SYSTEM_NAME = { wired: 'DICENTIS', wireless: 'DICENTIS Wireless', dcn: 'DCN', 'dcn-smd': 'DCN (meeting data)', ccs1000: 'CCS 1000 D' };
+const DEFAULT_PORTS = { wired: 31416, wireless: 80, dcn: 9480, 'dcn-smd': 20000, ccs1000: 80 };
 const STATE_LABEL = {
   disconnected: 'Disconnected', connecting: 'Connecting…', connected: 'Logging in…', loggedIn: 'Connected', reconnecting: 'Reconnecting…',
 };
@@ -82,6 +82,7 @@ export default {
         field('system', 'System', h('select', { name: 'system' },
           h('option', { value: 'wired', selected: s.system === 'wired' }, 'DICENTIS (wired server)'),
           h('option', { value: 'wireless', selected: s.system === 'wireless' }, 'DICENTIS Wireless (WAP)'),
+          h('option', { value: 'ccs1000', selected: s.system === 'ccs1000' }, 'CCS 1000 D Digital Discussion System (CCSD-CU)'),
           h('option', { value: 'dcn-smd', selected: s.system === 'dcn-smd' }, 'DCN Next Generation: meeting data stream (read-only)'),
           h('option', { value: 'dcn', selected: s.system === 'dcn' }, 'DCN Next Generation: full control (via dcn-bridge)'))),
         smdHint,
@@ -103,7 +104,7 @@ export default {
         const port = form.elements.namedItem('port');
         if (!port.disabled) port.value = String(DEFAULT_PORTS[systemSelect.value]);
         const tls = form.elements.namedItem('tlsInsecure');
-        if (!settings.pinned.includes('tlsInsecure')) tls.disabled = systemSelect.value === 'wireless'; // HTTP API: no TLS
+        if (!settings.pinned.includes('tlsInsecure')) tls.disabled = systemSelect.value === 'wireless' || systemSelect.value === 'ccs1000'; // HTTP API: no TLS
         dcnFields.hidden = systemSelect.value !== 'dcn';
         tlsField.hidden = systemSelect.value === 'dcn' || systemSelect.value === 'dcn-smd';
         smdHint.hidden = systemSelect.value !== 'dcn-smd';
@@ -168,7 +169,7 @@ export default {
     // ---------------------------------------------------------------- simulation (WO-095)
     const simBox = h('div');
     let simEdit = null; // profile being edited, or {} for a new one
-    const SIM_TYPES = [['wired', 'DICENTIS (wired)'], ['wireless', 'DICENTIS Wireless'], ['dcn', 'DCN NG (control)'], ['dcn-smd', 'DCN NG (meeting data)']];
+    const SIM_TYPES = [['wired', 'DICENTIS (wired)'], ['wireless', 'DICENTIS Wireless'], ['ccs1000', 'CCS 1000 D'], ['dcn', 'DCN NG (control)'], ['dcn-smd', 'DCN NG (meeting data)']];
     const newId = () => `sim-${Math.random().toString(16).slice(2, 10)}`;
 
     async function saveSims(simulators, extra = {}) {

@@ -28,8 +28,8 @@ before(async () => {
 after(() => backend.close());
 
 test('status, capabilities and topics fill after login', async () => {
-  assert.deepEqual(topic('dicentis.status').features, { audio: true, languages: true });
-  assert.deepEqual(topic('domain.capabilities').dicentis, { audio: true, languages: true });
+  assert.deepEqual(topic('dicentis.status').features, { audio: true, languages: true, participants: true });
+  assert.deepEqual(topic('domain.capabilities').dicentis, { audio: true, languages: true, participants: true });
   const audio = topic('dicentis.audio');
   assert.ok(audio.gains.some(g => g.type === 'Master') && audio.equalizers.Loudspeaker.length === 5 && audio.selections.length > 5);
   assert.equal(topic('dicentis.seatAudio').filter(s => s.kind === 'participant').length, 8);
@@ -67,6 +67,8 @@ test('languages: create, add to the meeting, order, assign to a desk, remove, de
   assert.equal((await post('/languages/create', { abbreviation: '', label: 'X' })).status, 400);
   const id = (await post('/languages/create', { abbreviation: 'SV', label: 'Swedish', native: 'Svenska' })).body.data.id;
   assert.ok(topic('dicentis.languages').some(l => l.id === id && l.userDefined));
+  assert.equal((await post('/languages/update', { id, label: 'Swedish (SE)' })).status, 200); // WO-115: every write once
+  assert.ok(topic('dicentis.languages').some(l => l.id === id && l.label === 'Swedish (SE)'));
   assert.equal((await post('/meeting-languages/add', { languageId: id, danteOut: true })).status, 200);
   assert.ok(topic('dicentis.meetingLanguages').languages.some(l => l.id === id && l.danteOut));
   // the Conference Protocol sees it too (linked simulation)
@@ -96,6 +98,6 @@ test('topics become unavailable when the bridge goes away', async () => {
   await call('POST', '/connection/disconnect', {});
   assert.ok(await until(() => (topic('dicentis.status')?.state ?? 'off') === 'off'), 'status off or cleared with the other system topics');
   assert.equal(topic('dicentis.audio'), undefined);
-  assert.deepEqual(topic('domain.capabilities')?.dicentis ?? { audio: false, languages: false }, { audio: false, languages: false });
+  assert.deepEqual(topic('domain.capabilities')?.dicentis ?? { audio: false, languages: false, participants: false }, { audio: false, languages: false, participants: false });
   assert.equal((await post('/audio/gain', { type: 'Master', value: 0 })).status, 503);
 });

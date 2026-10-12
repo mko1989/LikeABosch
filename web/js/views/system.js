@@ -28,7 +28,7 @@ export default {
           store.action('powerOn') && mode !== 'on'
             ? actionButton('Power on', setPower('on'), { cls: 'primary', disabled: transitioning })
             : null,
-          store.feature('powerStandby') && store.action('powerOff') && mode === 'on'
+          store.action('powerStandby') && mode === 'on'
             ? actionButton('Standby', setPower('standby'), { disabled: transitioning })
             : null,
           store.action('powerOff') && mode !== 'off'
@@ -37,7 +37,7 @@ export default {
               confirm: 'Switch the conference system off? All devices will power down.',
             })
             : null),
-        !store.action('powerOn') && !store.action('powerOff')
+        !store.action('powerOn') && !store.action('powerOff') && !store.action('powerStandby')
           ? h('p', { class: 'muted hint' }, 'This account may not switch power.') : null);
     }
 
@@ -99,7 +99,7 @@ export default {
 
     function renderRoom() {
       const kv = (k, v) => h('div', { class: 'kv' }, h('span', { class: 'k' }, k), h('span', { class: 'v' }, v));
-      if (store.system === 'wireless') {
+      if (store.system === 'wireless' || store.system === 'ccs1000') {
         const info = store.topic('wirelessSystemInfo');
         return replace(roomBox,
           kv('System', info?.['System Type'] ?? '—'), kv('Device', info?.['Device Type'] ?? '—'), kv('Hostname', info?.Hostname ?? '—'),
@@ -135,7 +135,7 @@ export default {
         cardIf('presentation', 'Presentation', presentationBox),
         cardIf('illumination', 'Seat illumination', illuminationBox),
         cardIf('identificationMode', 'Participant identification', identificationBox),
-        h('article', { class: 'card' }, h('h2', null, { wireless: 'Access point', dcn: 'DCN system', 'dcn-smd': 'DCN meeting data' }[store.system] ?? 'Room'), roomBox)),
+        h('article', { class: 'card' }, h('h2', null, { wireless: 'Access point', ccs1000: 'Control unit', dcn: 'DCN system', 'dcn-smd': 'DCN meeting data' }[store.system] ?? 'Room'), roomBox)),
     );
     const parts = [
       [['topic:domain.power', 'topic:domain.capabilities'], renderPower],

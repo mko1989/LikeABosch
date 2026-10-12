@@ -2,7 +2,8 @@
 // Runtime overrides from the settings API live in data/settings.json (WO-013) and never include the password.
 
 /**
- * @typedef {'wired' | 'wireless' | 'dcn' | 'dcn-smd'} SystemType  dcn = DCN NG via the dcn-bridge (DEC-017); dcn-smd = DCN Streaming Meeting Data (DEC-018)
+ * @typedef {'wired' | 'wireless' | 'dcn' | 'dcn-smd' | 'ccs1000'} SystemType  dcn = DCN NG via the dcn-bridge (DEC-017); dcn-smd = DCN Streaming Meeting Data (DEC-018);
+ *   ccs1000 = CCS 1000 D over its REST API, the wireless dialect (DEC-032)
  * @typedef {object} DicentisConfig
  * @property {SystemType} system
  * @property {string} host        DICENTIS server / WAP / dcn-bridge host
@@ -36,9 +37,9 @@
 
 import { defaultDataDir } from './lib/paths.js';
 
-export const DEFAULT_PORTS = { wired: 31416, wireless: 80, dcn: 9480, 'dcn-smd': 20000 };
+export const DEFAULT_PORTS = { wired: 31416, wireless: 80, dcn: 9480, 'dcn-smd': 20000, ccs1000: 80 };
 export const DEFAULT_DCNM_PORT = 9481;
-export const SYSTEMS = /** @type {const} */ (['wired', 'wireless', 'dcn', 'dcn-smd']);
+export const SYSTEMS = /** @type {const} */ (['wired', 'wireless', 'dcn', 'dcn-smd', 'ccs1000']);
 export const DEFAULT_DCN_SERVER = 'tcp://localhost:9461';
 
 /** @type {Record<string, string>} DICENTIS field → environment variable */

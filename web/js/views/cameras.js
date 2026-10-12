@@ -1,5 +1,5 @@
 // Settings → Cameras & switcher (WO-040, DEC-012): camera list/edit with model templates, PTZ jog, presets,
-// video switcher (ATEM) settings and camera → switcher input mapping.
+// video switcher settings (ATEM, Kramer MV-6, tvONE CORIO: DEC-012, DEC-033) and camera → switcher input mapping.
 import { ptzPad, ptzHolding, afterPtzHold } from '../ptz.js';
 import { h, replace, toast, toastError, actionButton } from '../dom.js';
 
@@ -183,7 +183,7 @@ export default {
     // ATEM autodiscovery (WO-090): mDNS browse on the backend's network; "Use" fills in the address.
     let found = null; // null = not searched yet; [] = nothing found
     let finding = false;
-    function discoveryBox(driver, host) {
+    function discoveryBox() {
       const find = async () => {
         finding = true; renderSwitcher();
         try { found = await api.get('/devices/switcher/discover?timeoutMs=3000'); } catch (err) { toastError(err, 'Find ATEM: '); found = null; }
@@ -194,31 +194,90 @@ export default {
         found && !found.length ? h('p', { class: 'muted small-text' }, 'No ATEM answered. It must be on the same network segment as this computer (mDNS does not cross routers); enter the address by hand otherwise.') : null,
         found?.length ? h('ul', { class: 'compact found-list' }, found.map(f => h('li', null,
           h('strong', null, f.name), f.model && f.model !== f.name ? ` · ${f.model}` : '', ` · ${f.address ?? 'no address'} `,
-          f.address ? h('button', { type: 'button', class: 'link small', onclick: () => { driver.value = 'atem'; host.value = f.address; host.focus(); toast(`${f.name}: address filled in, now Save switcher`, 'info'); } }, 'Use') : null))) : null);
+          f.address ? h('button', { type: 'button', class: 'link small', onclick: () => { swDriver = 'atem'; pendingHost = f.address; renderSwitcher(); switcherBox.querySelector('input[name=host]')?.focus(); toast(`${f.name}: address filled in, now Save switcher`, 'info'); } }, 'Use') : null))) : null);
+    }
+
+    /** Switcher types (DEC-012, DEC-033) and their settings. */
+    const SWITCHER_TYPES = [['atem', 'Blackmagic ATEM'], ['kramer-mv6', 'Kramer MV-6'], ['tvone-corio', 'tvONE CORIOmaster / CORIOmatrix'], ['mock', 'Simulated switcher']];
+    const SWITCHER_NOTES = {
+      atem: 'Automation does a hard program cut on this M/E.',
+      'kramer-mv6': 'Protocol 3000 over TCP (default port 5000). The program is the input of one window: window 1 in the Full layout is the full-screen picture. Inputs 1–6; no preview bus.',
+      'tvone-corio': 'CORIOmaster API over TCP (default port 10001). Camera switcher input n = the n-th CORIO input in the list. A preview window (e.g. a monitor window) is optional.',
+      mock: 'A switcher inside LikeABosch with 8 inputs, for trying the automation without hardware.',
+    };
+    let swDriver = null; // type chosen in the form but not saved yet
+    let pendingHost = null; // address picked from the ATEM search, shown in the next render
+
+    /** The type's fields and a function that reads them into a request body. */
+    function switcherFields(type, sw) {
+      const same = sw?.driver === type;
+      const input = (name, value, attrs = {}) => h('input', { name, value: value ?? '', spellcheck: 'false', ...attrs });
+      const field = (label, el) => h('label', { class: 'field' }, h('span', null, label), el);
+      const num = el => (el.value.trim() === '' ? null : Number(el.value));
+      if (type === 'atem') {
+        const host = input('host', pendingHost ?? (same ? sw.host : ''), { placeholder: '192.168.1.240' });
+        pendingHost = null;
+        const me = input('me', String(((same ? sw.me : 0) ?? 0) + 1), { type: 'number', min: 1, max: 4 });
+        return { host, nodes: [h('div', { class: 'row three' }, field('IP address', host), field('M/E', me))], body: () => ({ host: host.value.trim(), me: Number(me.value) - 1 }) };
+      }
+      if (type === 'kramer-mv6') {
+        const host = input('host', same ? sw.host : '', { placeholder: '192.168.1.39' });
+        const port = input('port', same && sw.port ? String(sw.port) : '', { type: 'number', min: 1, max: 65535, placeholder: '5000' });
+        const win = input('window', String(same && Number.isInteger(sw.window) ? sw.window : 1), { type: 'number', min: 1, max: 4 });
+        const preset = h('select', { name: 'layoutPreset' }, h('option', { value: '' }, 'Leave as it is'),
+          [1, 2, 3, 4, 5, 6].map(n => h('option', { value: String(n), selected: same && sw.layoutPreset === n }, `Preset ${n}`)));
+        return {
+          host,
+          nodes: [h('div', { class: 'row three' }, field('IP address', host), field('Port', port), field('Program window', win)),
+            h('div', { class: 'row three' }, field('Layout preset on connect', preset))],
+          body: () => ({ host: host.value.trim(), port: num(port), window: Number(win.value) || 1, layoutPreset: preset.value ? Number(preset.value) : null }),
+        };
+      }
+      if (type === 'tvone-corio') {
+        const host = input('host', same ? sw.host : '', { placeholder: '192.168.0.10' });
+        const port = input('port', same && sw.port ? String(sw.port) : '', { type: 'number', min: 1, max: 65535, placeholder: '10001' });
+        const win = input('window', same && typeof sw.window === 'string' ? sw.window : 'Window1');
+        const prev = input('previewWindow', same ? sw.previewWindow ?? '' : '', { placeholder: 'none' });
+        const inputs = input('inputs', same && sw.inputs ? sw.inputs : 'Slot1.In1,Slot1.In2,Slot1.In3,Slot1.In4');
+        const user = input('username', same ? sw.username ?? 'admin' : 'admin', { autocomplete: 'off' });
+        const pass = input('password', '', { type: 'password', autocomplete: 'new-password', placeholder: same && sw.passwordSet ? '•••••••• (set, leave empty to keep)' : 'adminpw' });
+        return {
+          host,
+          nodes: [
+            h('div', { class: 'row three' }, field('IP address', host), field('Port', port), field('Program window', win)),
+            h('div', { class: 'row three' }, field('Preview window', prev), field('Username', user), field('Password', pass)),
+            h('label', { class: 'field' }, h('span', null, 'CORIO inputs (switcher input 1, 2, 3 …)'), inputs)],
+          body: () => ({
+            host: host.value.trim(), port: num(port), window: win.value.trim() || 'Window1', previewWindow: prev.value.trim() || null,
+            inputs: inputs.value.split(',').map(x => x.trim()).filter(Boolean).join(','), username: user.value.trim(),
+            ...(pass.value ? { password: pass.value } : same && sw.passwordSet ? {} : { password: 'adminpw' }),
+          }),
+        };
+      }
+      return { host: null, nodes: [], body: () => ({}) };
     }
 
     function renderSwitcher() {
       const sw = switcher();
+      const type = swDriver ?? sw?.driver ?? '';
       const driver = h('select', { name: 'driver', 'aria-label': 'Switcher type' },
-        h('option', { value: '', selected: !sw }, 'None'),
-        h('option', { value: 'atem', selected: sw?.driver === 'atem' }, 'Blackmagic ATEM'),
-        h('option', { value: 'mock', selected: sw?.driver === 'mock' }, 'Simulated switcher'));
-      const host = h('input', { name: 'host', value: sw?.host ?? '', placeholder: '192.168.1.240', spellcheck: 'false' });
-      const me = h('input', { name: 'me', type: 'number', min: 1, max: 4, value: String((sw?.me ?? 0) + 1) });
+        h('option', { value: '', selected: !type }, 'None'),
+        SWITCHER_TYPES.map(([v, label]) => h('option', { value: v, selected: type === v }, label)));
+      driver.addEventListener('change', () => { swDriver = driver.value; renderSwitcher(); });
+      const fields = switcherFields(type, sw);
       const save = async () => {
         try {
-          await api.put('/devices/switcher', driver.value ? { driver: driver.value, host: host.value.trim(), me: Number(me.value) - 1 } : {});
-          toast(driver.value ? 'Switcher saved' : 'Switcher removed', 'success');
+          await api.put('/devices/switcher', type ? { driver: type, ...fields.body() } : {});
+          if (swDriver === type) swDriver = null; // unless another type was picked meanwhile
+          toast(type ? 'Switcher saved' : 'Switcher removed', 'success');
         } catch (err) { toastError(err); }
       };
-      const st = sw?.status;
+      const st = sw?.driver === type ? sw?.status : null;
       replace(switcherBox,
-        h('div', { class: 'card-head' }, h('h2', null, 'Video switcher'), sw ? statusPill(st) : null),
-        h('div', { class: 'row three' },
-          h('label', { class: 'field' }, h('span', null, 'Type'), driver),
-          h('label', { class: 'field' }, h('span', null, 'IP address'), host),
-          h('label', { class: 'field' }, h('span', null, 'M/E'), me)),
-        discoveryBox(driver, host),
+        h('div', { class: 'card-head' }, h('h2', null, 'Video switcher'), sw ? statusPill(sw.status) : null),
+        h('label', { class: 'field' }, h('span', null, 'Type'), driver),
+        fields.nodes,
+        type === 'atem' || !type ? discoveryBox() : null,
         h('label', { class: 'check' }, h('input', {
           type: 'checkbox', checked: sw ? sw.automation !== false : true, 'aria-label': 'Automatic switcher cuts', disabled: !sw,
           onchange: async e => {
@@ -229,10 +288,10 @@ export default {
         h('div', { class: 'actions' }, h('button', { type: 'button', class: 'primary', onclick: save }, 'Save switcher')),
         st ? h('div', null,
           h('div', { class: 'kv' }, h('span', { class: 'k' }, 'Model'), h('span', { class: 'v' }, st.model ?? '—')),
-          h('div', { class: 'kv' }, h('span', { class: 'k' }, 'Program / preview'), h('span', { class: 'v' }, `${st.program ?? '—'} / ${st.preview ?? '—'}`)),
-          st.lastError && !st.connected ? h('p', { class: 'error small-text' }, st.lastError) : null,
-          h('p', { class: 'muted small-text' }, 'Automation does a hard program cut on this M/E.'))
-          : null);
+          h('div', { class: 'kv' }, h('span', { class: 'k' }, 'Program / preview'), h('span', { class: 'v' }, `${st.program ?? st.programName ?? '—'} / ${st.preview ?? '—'}`)),
+          st.lastError && !st.connected ? h('p', { class: 'error small-text' }, st.lastError) : null)
+          : null,
+        type ? h('p', { class: 'muted small-text' }, SWITCHER_NOTES[type]) : null);
     }
 
     // ---------------------------------------------------------------- room view options (WO-053)

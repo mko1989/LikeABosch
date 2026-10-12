@@ -301,7 +301,10 @@ namespace DicentisBridge
             };
         }
 
-        /// <summary>const fields of the API's classes, e.g. "DcnmMicrophoneOptions.DEFAULT_OPEN_MICROPHONES": 2.</summary>
+        /// <summary>
+        /// const / static readonly fields of the API's classes, e.g. "DcnmMicrophoneOptions.DEFAULT_OPEN_MICROPHONES": 2,
+        /// "MeetingConstants.PARTICIPANTGROUPID": "…" (Guids as strings: needed to create persons, WO-106).
+        /// </summary>
         public Dictionary<string, object> Constants()
         {
             var result = new Dictionary<string, object>();
@@ -311,7 +314,7 @@ namespace DicentisBridge
                 {
                     if (!(f.IsLiteral || f.IsInitOnly)) continue;
                     var v = f.IsLiteral ? f.GetRawConstantValue() : f.GetValue(null);
-                    if (v == null || v is string || v.GetType().IsPrimitive || v.GetType().IsEnum) result[t.Name + "." + f.Name] = ClrConvert.FromClr(v);
+                    if (v == null || v is string || v is Guid || v.GetType().IsPrimitive || v.GetType().IsEnum) result[t.Name + "." + f.Name] = ClrConvert.FromClr(v);
                 }
             return result;
         }

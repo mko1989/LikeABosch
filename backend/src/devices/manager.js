@@ -29,8 +29,15 @@ const SWITCHER_FIELDS = {
   port: v => v === null || (Number.isInteger(v) && v > 0 && v < 65536),
   me: v => Number.isInteger(v) && v >= 0 && v <= 3,
   automation: v => typeof v === 'boolean', // DEC-015: false = the director never cuts
+  // DEC-033: Kramer MV-6 (window number, layout preset) and tvONE CORIO (window name, input names, login)
+  window: v => (Number.isInteger(v) && v >= 1 && v <= 64) || (typeof v === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(v)),
+  layoutPreset: v => v === null || (Number.isInteger(v) && v >= 1 && v <= 6),
+  previewWindow: v => v === null || v === '' || (typeof v === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(v)),
+  inputs: v => typeof v === 'string' && v.length <= 1000 && v.split(',').every(x => /^\s*[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)*\s*$/.test(x)),
+  username: v => typeof v === 'string' && v.length <= 64,
+  password: v => typeof v === 'string' && v.length <= 64,
 };
-const SWITCHER_CONNECTION = ['driver', 'host', 'port', 'me'];
+const SWITCHER_CONNECTION = ['driver', 'host', 'port', 'me', 'window', 'layoutPreset', 'previewWindow', 'inputs', 'username', 'password'];
 // Bitfocus Companion (WO-099, DEC-027): where to send button presses; rows/cols only size the picker grid.
 const COMPANION_FIELDS = {
   host: v => typeof v === 'string' && v.trim().length > 0 && v.length <= 253,
@@ -152,7 +159,8 @@ export class DeviceManager extends EventEmitter {
 
   publicSwitcher() {
     if (!this.switcher) return null;
-    return { ...this.switcher.config, automation: this.switcher.config.automation !== false, status: this.switcher.driver?.status() ?? { connected: false, lastError: null } };
+    const { password, ...config } = this.switcher.config; // tvONE login (DEC-033): stored, never returned
+    return { ...config, automation: config.automation !== false, passwordSet: Boolean(password), status: this.switcher.driver?.status() ?? { connected: false, lastError: null } };
   }
 
   #publish() {
@@ -308,7 +316,10 @@ export class DeviceManager extends EventEmitter {
     }
     validate(SWITCHER_FIELDS, config, { requireAll: ['driver'] });
     if (config.driver !== 'mock' && !config.host) throw new AppError('VALIDATION', 'Invalid device settings', { details: ['host: required'] });
-    this.switcher = { ...this.switcher, config: { me: 0, ...this.switcher?.config, ...config } };
+    // Another switcher type: start from its defaults (window, inputs, login of the old type mean nothing to it).
+    const old = this.switcher?.config;
+    const base = old?.driver === config.driver ? old : (old?.automation === false ? { automation: false } : {});
+    this.switcher = { ...this.switcher, config: { me: 0, ...base, ...config } };
     await this.#save();
     await this.#connectSwitcher();
     return this.publicSwitcher();

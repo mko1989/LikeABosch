@@ -1,11 +1,12 @@
 // Which Windows bridge the launcher has to start for the current settings, and where its exe is (DEC-022, WO-080).
+// With `autoBridges` (DEC-037, WO-120) also every bridge whose Bosch software is installed (detectBoschApis).
 // Pure Node: testable without Electron or Windows.
 import { existsSync } from 'node:fs';
 import { hostname, networkInterfaces } from 'node:os';
 import { join } from 'node:path';
 
 /**
- * @typedef {{ name: 'dcn-bridge' | 'dicentis-bridge', dir: string, exe: string, port: number, dllDir: string, token: string }} BridgeSpec
+ * @typedef {{ name: 'dcn-bridge' | 'dicentis-bridge', dir: string, exe: string, port: number, dllDir: string, token: string, auto?: boolean }} BridgeSpec
  */
 
 export const BRIDGES = {
@@ -25,17 +26,32 @@ export function isLocalHost(host, { name = hostname(), interfaces = networkInter
  * The bridges these settings need on this PC. Only on Windows (the bridges host Windows .NET DLLs); a remote bridge host
  * means the bridge runs elsewhere, as before.
  * @param {import('./settings-store.js').DEFAULT_SETTINGS} settings
- * @param {{ platform?: string, bridgeToken?: string, local?: (host: string) => boolean }} [options]
+ * @param {{ platform?: string, bridgeToken?: string, local?: (host: string) => boolean,
+ *   found?: { dicentis?: { dllDir: string } | null, dcn?: { dllDir: string } | null } }} [options]
+ *   `found`: installed Bosch APIs (detectBoschApis); with `autoBridges` their bridges start without being configured.
  * @returns {BridgeSpec[]}
  */
-export function neededBridges(settings, { platform = process.platform, bridgeToken = '', local = isLocalHost } = {}) {
+export function neededBridges(settings, { platform = process.platform, bridgeToken = '', local = isLocalHost, found = {} } = {}) {
   if (platform !== 'win32' || settings.manageBridges === false) return [];
+  const auto = settings.autoBridges !== false;
   const out = [];
-  if (settings.system === 'dcn' && local(settings.host)) {
-    out.push({ name: 'dcn-bridge', ...pick('dcn-bridge'), port: settings.port ?? BRIDGES['dcn-bridge'].defaultPort, dllDir: settings.dcnBridgeDllDir ?? '', token: bridgeToken, exe: settings.dcnBridgeExe || BRIDGES['dcn-bridge'].exe });
+  const dcnHere = settings.system === 'dcn' && local(settings.host);
+  const dcnElsewhere = settings.system === 'dcn' && !dcnHere; // the configured bridge runs on another PC
+  if (dcnHere || (auto && found.dcn && !dcnElsewhere)) {
+    out.push({
+      name: 'dcn-bridge', ...pick('dcn-bridge'), port: (dcnHere ? settings.port : null) ?? BRIDGES['dcn-bridge'].defaultPort,
+      dllDir: settings.dcnBridgeDllDir || found.dcn?.dllDir || '', token: bridgeToken, exe: settings.dcnBridgeExe || BRIDGES['dcn-bridge'].exe,
+      ...(dcnHere ? {} : { auto: true }),
+    });
   }
-  if (settings.system === 'wired' && settings.dcnmBridge && local(settings.dcnmHost)) {
-    out.push({ name: 'dicentis-bridge', ...pick('dicentis-bridge'), port: settings.dcnmPort ?? BRIDGES['dicentis-bridge'].defaultPort, dllDir: settings.dcnmDllDir ?? '', token: bridgeToken, exe: settings.dcnmExe || BRIDGES['dicentis-bridge'].exe });
+  const dcnmConfigured = settings.system === 'wired' && settings.dcnmBridge;
+  const dcnmHere = dcnmConfigured && local(settings.dcnmHost);
+  if (dcnmHere || (auto && found.dicentis && !(dcnmConfigured && !dcnmHere))) {
+    out.push({
+      name: 'dicentis-bridge', ...pick('dicentis-bridge'), port: settings.dcnmPort ?? BRIDGES['dicentis-bridge'].defaultPort,
+      dllDir: settings.dcnmDllDir || found.dicentis?.dllDir || '', token: bridgeToken, exe: settings.dcnmExe || BRIDGES['dicentis-bridge'].exe,
+      ...(dcnmHere ? {} : { auto: true }),
+    });
   }
   return out;
 }

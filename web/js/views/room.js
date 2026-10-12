@@ -1057,7 +1057,9 @@ export default {
     /** Edit mode (WO-084, DEC-023): give the seat to a participant, clear it, or create a participant on it. */
     function participantEditor(id, assigned) {
       if (!store.topic('domain.capabilities')?.actions?.editParticipants) {
-        return h('p', { class: 'muted small-text' }, 'The connected system does not let LikeABosch edit participants.');
+        return h('p', { class: 'muted small-text' }, store.system === 'wired'
+          ? 'Assigning participants on a wired DICENTIS needs the full DICENTIS API (dicentis-bridge, Settings → Connection).'
+          : 'The connected system does not let LikeABosch edit participants.');
       }
       const people = [...(store.topic('domain.participants') ?? [])].sort((a, b) => a.sortName.localeCompare(b.sortName));
       const assign = async participantId => {

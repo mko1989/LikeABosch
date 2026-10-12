@@ -1,5 +1,6 @@
 // DICENTIS audio & Dante over the DCNM API (WO-081, DEC-029): DCNM payloads → plain topics, request bodies → DCNM data
 // classes. Pure functions; the service (service.js) does the calls.
+import { toConstructor } from '../dcnm/shape.js';
 import { AppError } from '../lib/errors.js';
 
 export const EQ_TYPES = ['Loudspeaker', 'SoundReinforcement'];
@@ -50,7 +51,11 @@ export function gainSetting(body, current) {
   };
 }
 
-/** Body { equalizer, band, enabled?, filter?, gain?, frequency?, q? } + current → DcnmAudioEqualizerSettings. */
+/**
+ * Body { equalizer, band, enabled?, filter?, gain?, frequency?, q? } + current → DcnmAudioEqualizerSettings, as its
+ * constructor (equalizerType, filterNumber, filterType, filterEnabled, gain, frequency, qualityFactor): the property is
+ * called QFactor when read, the constructor parameter qualityFactor (WO-115).
+ */
 export function equalizerSetting(body, current) {
   if (!EQ_TYPES.includes(body?.equalizer)) throw bad(`equalizer must be one of ${EQ_TYPES.join(', ')}`);
   const b = current?.equalizers[body.equalizer]?.find(x => x.band === body.band);
@@ -65,7 +70,7 @@ export function equalizerSetting(body, current) {
   if (!EQ_FILTERS.includes(filter)) throw bad(`filter must be one of ${EQ_FILTERS.join(', ')}`);
   return {
     EqualizerType: body.equalizer, FilterNumber: b.band, FilterType: filter,
-    FilterEnabled: body.enabled === undefined ? b.enabled : bool(body.enabled, 'enabled'), Gain: gain, Frequency: frequency, QFactor: q,
+    FilterEnabled: body.enabled === undefined ? b.enabled : bool(body.enabled, 'enabled'), Gain: gain, Frequency: frequency, QualityFactor: q,
   };
 }
 
@@ -88,6 +93,7 @@ export function seatDanteUpdate(body, seats) {
   return body.seatIds.map(id => {
     const s = seats.find(x => x.Id === id);
     if (!s) throw bad(`Unknown seat '${id}'`);
-    return { ...s, ...(body.danteOut !== undefined ? { DanteOut: body.danteOut } : {}), ...(body.headroom !== undefined ? { Headroom: body.headroom } : {}) };
+    // The seat as read has properties no constructor takes (HasVotingLicense2, …): cut to a constructor (WO-115).
+    return toConstructor('DcnmSeatConfigurationInfo', { ...s, ...(body.danteOut !== undefined ? { DanteOut: body.danteOut } : {}), ...(body.headroom !== undefined ? { Headroom: body.headroom } : {}) });
   });
 }

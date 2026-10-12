@@ -1,7 +1,7 @@
 // Domain service (WO-017, DEC-010): keeps `domain.*` topics derived from the active system's raw topics.
-import { capabilities, dcn, dcnSmd, wired, wireless, DOMAIN_TOPICS } from './mappers.js';
+import { capabilities, ccs1000, dcn, dcnSmd, wired, wireless, DOMAIN_TOPICS } from './mappers.js';
 
-const MAPPERS = { wired, wireless, dcn, 'dcn-smd': dcnSmd };
+const MAPPERS = { wired, wireless, dcn, 'dcn-smd': dcnSmd, ccs1000 };
 
 export class DomainService {
   /**
@@ -15,7 +15,7 @@ export class DomainService {
     /** raw topic → domain topics depending on it */
     this.dependents = new Map();
     for (const [topic, def] of Object.entries(DOMAIN_TOPICS)) {
-      for (const src of new Set([...def.wired, ...def.wireless, ...def.dcn, ...def['dcn-smd']])) this.dependents.set(src, [...(this.dependents.get(src) ?? []), topic]);
+      for (const src of new Set([...def.wired, ...def.wireless, ...def.dcn, ...def['dcn-smd'], ...def.ccs1000])) this.dependents.set(src, [...(this.dependents.get(src) ?? []), topic]);
     }
     cache.on('change', topic => {
       if (topic.startsWith('domain.')) return;
@@ -40,7 +40,12 @@ export class DomainService {
   #capabilities() {
     const permissions = this.system === 'dcn' ? dcnAllowed(this.cache.get('dcnBridge')?.data?.status) : this.cache.get('permissions')?.data?.permissions ?? [];
     const dicentis = this.system === 'wired' ? this.cache.get('dicentis.status')?.data?.features : null; // DEC-029 §3
-    this.cache.set('domain.capabilities', { ...capabilities(this.system, permissions), dicentis: { audio: Boolean(dicentis?.audio), languages: Boolean(dicentis?.languages) } });
+    const caps = capabilities(this.system, permissions);
+    if (dicentis?.participants) { // wired participant editing through the DCNM API (DEC-034)
+      caps.features = { ...caps.features, participantsEdit: true };
+      caps.actions = { ...caps.actions, editParticipants: true };
+    }
+    this.cache.set('domain.capabilities', { ...caps, dicentis: { audio: Boolean(dicentis?.audio), languages: Boolean(dicentis?.languages), participants: Boolean(dicentis?.participants) } });
   }
 
   #compute(topic) {

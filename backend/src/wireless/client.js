@@ -17,6 +17,7 @@ import { createLogger } from '../lib/logger.js';
  * @property {number} [writeTimeoutMs]    default 60000 for POST/PUT/DELETE
  * @property {number} [loginTimeoutMs]    default 60000: the WAP answers a login only after the long-polls of the user's
  *                                        previous session have timed out (~48 s, WO-075)
+ * @property {string} [product]          name in messages, default "DICENTIS Wireless" ("CCS 1000 D", DEC-032)
  * @property {{ enabled?: boolean, minDelayMs?: number, maxDelayMs?: number }} [reconnect]
  * @property {ReturnType<createLogger>} [log]
  */
@@ -27,7 +28,7 @@ export class WirelessClient extends EventEmitter {
   constructor(options) {
     super();
     this.options = {
-      port: 80, scheme: 'http', override: false, requestTimeoutMs: 10_000, writeTimeoutMs: 60_000, loginTimeoutMs: 60_000,
+      port: 80, scheme: 'http', override: false, product: 'DICENTIS Wireless', requestTimeoutMs: 10_000, writeTimeoutMs: 60_000, loginTimeoutMs: 60_000,
       ...options,
       reconnect: { enabled: true, minDelayMs: 1_000, maxDelayMs: 30_000, ...options.reconnect },
     };
@@ -86,7 +87,7 @@ export class WirelessClient extends EventEmitter {
     } catch (err) {
       throw new AppError('NOT_CONNECTED', `Cannot reach ${this.baseUrl}: ${err.cause?.code ?? err.message}`);
     }
-    if (res.status === 401) throw new AppError('UPSTREAM_AUTH', `DICENTIS Wireless login failed for user '${user}'`);
+    if (res.status === 401) throw new AppError('UPSTREAM_AUTH', `${this.options.product} login failed for user '${user}'`);
     if (res.status === 409) {
       throw new AppError('UPSTREAM_AUTH', `User '${user}' is already logged in elsewhere (connect with "take over session" to override)`, { reason: 'alreadyLoggedIn' });
     }
@@ -117,7 +118,7 @@ export class WirelessClient extends EventEmitter {
    */
   async request(method, path, { query, body, timeoutMs } = {}) {
     if (this.state !== 'loggedIn') {
-      throw new AppError('NOT_CONNECTED', `Not connected to DICENTIS Wireless (state: ${this.state})`);
+      throw new AppError('NOT_CONNECTED', `Not connected to ${this.options.product} (state: ${this.state})`);
     }
     const isGet = method === 'GET';
     const retryOnTimeout = isGet && timeoutMs === undefined && !query?.isPolling;

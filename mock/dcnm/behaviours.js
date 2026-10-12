@@ -19,6 +19,8 @@ export const EMPTY_GUID = '00000000-0000-0000-0000-000000000000';
  * @property {{ gains: object[], equalizers: object[], selections: object[], routingState: boolean, muted: boolean, vuOn: boolean, vuLevels: Record<string, number> }} audio
  * @property {object[]} systemGains DcnmGainSetting[]
  * @property {boolean} presentation
+ * @property {object[]} persons DcnmUserAccountPreparationInfo[] (WO-106)
+ * @property {object[]} participants DcnmParticipantPreparationInfo2[] (WO-106)
  * @property {Array<(kind: string, detail: object) => void>} listeners
  */
 
@@ -247,6 +249,50 @@ function checkLanguageRef(world, id, what) {
   return id;
 }
 
+// --- persons and meeting participants (WO-106) ---
+const PERSON_TEXT = ['FirstName', 'MiddleName', 'LastName', 'Title', 'Group', 'Country', 'Region', 'Email', 'NFCId', 'UiLanguage'];
+const PARTICIPANT_FLAGS = ['CanDiscuss', 'CanVote', 'CanUsePriority', 'CanManageMeeting', 'HasSpecialPermission'];
+const personName = u => [u.Title, u.FirstName, u.MiddleName, u.LastName].filter(Boolean).join(' ');
+
+/** A DcnmUserPreparationInfo from a request, over `base`. The API takes persons of the participant user group only. */
+function personUser(w, info, base = {}) {
+  const user = { ...base };
+  for (const k of PERSON_TEXT) if (info[k] !== undefined) user[k] = checkKind('string', info[k], k);
+  for (const k of PERSON_TEXT) user[k] ??= '';
+  if (info.UserGroupId !== undefined) user.UserGroupId = checkKind('guid', info.UserGroupId, 'UserGroupId');
+  user.UserGroupId ??= EMPTY_GUID;
+  if (w.participantGroupId && user.UserGroupId !== w.participantGroupId) throw bad('UserGroupId must be the participant user group');
+  if (!personName(user).trim()) throw bad('a person needs a first or last name');
+  return user;
+}
+
+function createPersons(w, infos, ev) {
+  requireArray(infos, 'userAccountInfos');
+  const created = infos.map(raw => {
+    const info = requireObject(raw, 'userAccountInfo');
+    const userName = checkKind('string', info.UserName, 'UserName').trim();
+    if (!userName) throw bad('UserName is required');
+    if (w.persons.some(p => p.UserName.toLowerCase() === userName.toLowerCase())) throw bad(`UserName ${userName} already exists`);
+    const id = randomUUID();
+    return { UserId: id, UserName: userName, Password: '', PinCode: '', User: { ...personUser(w, requireObject(info.User, 'User')), UserId: id } };
+  });
+  w.persons.push(...created);
+  ev('PersonsCreated', copy(created));
+  notify(w, 'persons', { action: 'created' });
+  return created;
+}
+
+function participantView(w, p) {
+  return { ParticipantInfo: copy(p), UserInfo: copy(w.persons.find(x => x.UserId === p.UserId)?.User ?? null) };
+}
+
+function checkParticipantSeat(w, seatId, self) {
+  if (seatId === EMPTY_GUID) return;
+  const seat = find(w.seats, x => x.Id === seatId, `seat ${seatId}`);
+  if (seat.SeatType !== 'ParticipantSeat') throw bad(`seat ${seatId} is not a participant seat`);
+  if (w.participants.some(x => x !== self && x.AssignedAt === seatId)) throw bad(`seat ${seat.Name} is already assigned`);
+}
+
 function setPresentation(world, ev, active) {
   world.presentation = active;
   ev('PresentationStateChanged', active);
@@ -284,7 +330,8 @@ const HANDLERS = {
     if (s.FilterType !== undefined) patch.FilterType = checkKind('DcnmAudioEqualizerFilterType', s.FilterType, 'FilterType');
     if (s.Gain !== undefined) patch.Gain = checkNumber(s.Gain, -12, 12, 'Gain');
     if (s.Frequency !== undefined) patch.Frequency = checkInteger(s.Frequency, 20, 20000, 'Frequency');
-    if (s.QFactor !== undefined) patch.QFactor = checkNumber(s.QFactor, 0.1, 10, 'QFactor');
+    // Constructor member qualityFactor, read back as property QFactor (WO-115).
+    if (s.QualityFactor !== undefined) patch.QFactor = checkNumber(s.QualityFactor, 0.1, 10, 'QualityFactor');
     Object.assign(band, patch);
     ev('AudioSettingsChanged', audioSettingsPayload(w));
     notify(w, 'audio', { what: 'equalizer', equalizerType: band.EqualizerType, filterNumber: band.FilterNumber });
@@ -536,6 +583,106 @@ const HANDLERS = {
     return true;
   },
 
+  // --- RegisterPerson / RegisterUser (WO-106) ---
+  'RegisterPerson.CreatePersonsAsync': (w, a, ev) => copy(createPersons(w, a.userAccountInfos, ev)),
+  'RegisterPerson.CreatePersonAsync': (w, a, ev) => { createPersons(w, a.userAccountInfos, ev); return true; },
+  'RegisterPerson.GetPersonAsync': w => copy(w.persons),
+  'RegisterUser.GetUsersAsync': w => copy(w.persons),
+  'RegisterPerson.UpdatePersonAsync': (w, a, ev) => {
+    const updated = requireArray(a.userAccountInfos, 'userAccountInfos').map(raw => {
+      const info = requireObject(raw, 'userAccountInfo');
+      const person = find(w.persons, p => p.UserId === (info.UserId ?? info.User?.UserId), `person ${info.UserId ?? info.User?.UserId}`);
+      return { person, user: personUser(w, requireObject(info.User, 'User'), person.User) };
+    });
+    for (const { person, user } of updated) person.User = { ...user, UserId: person.UserId };
+    ev('PersonsUpdated', copy(updated.map(u => u.person)));
+    notify(w, 'persons', { action: 'updated' });
+    return true;
+  },
+  'RegisterPerson.DeletePersonAsync': (w, a, ev) => {
+    const ids = new Set(requireArray(a.userIds, 'userIds'));
+    w.persons = w.persons.filter(p => !ids.has(p.UserId));
+    w.participants = w.participants.filter(p => !ids.has(p.UserId));
+    ev('PersonsDeleted', [...ids]);
+    notify(w, 'participants', { action: 'deleted' });
+    return true;
+  },
+
+  // --- PrepareParticipant2: participants of a meeting (WO-106) ---
+  'PrepareParticipant2.RetrieveParticipantsForMeetingAsync': (w, a) => {
+    requireMeeting(w, a.meetingId);
+    return w.participants.filter(p => p.MeetingId === a.meetingId).map(p => participantView(w, p));
+  },
+  'PrepareParticipant2.RegisterParticipantsAsync': (w, a, ev) => {
+    // Like the real API: entries that fail are left out of the result.
+    const added = [];
+    for (const raw of requireArray(a.participants, 'participants')) {
+      try {
+        const info = requireObject(raw, 'participant');
+        requireMeeting(w, info.MeetingId);
+        const person = find(w.persons, p => p.UserId === info.UserId, `person ${info.UserId}`);
+        if (w.participants.some(p => p.UserId === person.UserId && p.MeetingId === info.MeetingId)) throw bad(`${person.UserName} is already a participant`);
+        const p = {
+          Id: randomUUID(), MeetingId: info.MeetingId, UserId: person.UserId, UserName: person.UserName,
+          ScreenLine: typeof info.ScreenLine === 'string' && info.ScreenLine ? info.ScreenLine : personName(person.User),
+          AssignedAt: info.AssignedAt ?? EMPTY_GUID, VipType: info.VipType ?? 'None', VoteWeight: Number.isInteger(info.VoteWeight) ? info.VoteWeight : 1,
+          ...Object.fromEntries(PARTICIPANT_FLAGS.map(k => [k, typeof info[k] === 'boolean' ? info[k] : k === 'CanDiscuss' || k === 'CanVote'])),
+        };
+        checkKind('DcnmSpecialOperationType', p.VipType, 'VipType');
+        checkParticipantSeat(w, p.AssignedAt, p);
+        w.participants.push(p);
+        added.push(participantView(w, p));
+      } catch { /* left out */ }
+    }
+    if (added.length) {
+      ev('ParticipantsRegistered', copy(added));
+      notify(w, 'participants', { action: 'registered' });
+    }
+    return added;
+  },
+  'PrepareParticipant2.UpdateParticipantsAsync': (w, a, ev) => {
+    const changes = requireArray(a.participantInfos, 'participantInfos').map(raw => {
+      const info = requireObject(raw, 'participantInfo');
+      return { p: find(w.participants, x => x.Id === info.Id, `participant ${info.Id}`), info };
+    });
+    for (const { p, info } of changes) {
+      if (info.AssignedAt !== undefined) checkParticipantSeat(w, info.AssignedAt, p);
+      for (const k of PARTICIPANT_FLAGS) if (typeof info[k] === 'boolean') p[k] = info[k];
+      if (typeof info.ScreenLine === 'string') p.ScreenLine = info.ScreenLine;
+      if (Number.isInteger(info.VoteWeight)) p.VoteWeight = info.VoteWeight;
+      if (info.AssignedAt !== undefined) p.AssignedAt = info.AssignedAt;
+    }
+    ev('ParticipantsUpdated', copy(changes.map(c => participantView(w, c.p))));
+    notify(w, 'participants', { action: 'updated' });
+    return true;
+  },
+  'PrepareParticipant2.DeleteParticipantsAsync': (w, a, ev) => {
+    const ids = new Set(requireArray(a.participantIds, 'participantIds'));
+    w.participants = w.participants.filter(p => !ids.has(p.Id));
+    ev('ParticipantsDeleted', [...ids]);
+    notify(w, 'participants', { action: 'deleted' });
+    return true;
+  },
+  'PrepareParticipant2.AssignParticipantsToSeatsAsync': (w, a, ev) => {
+    const list = requireArray(a.participantInfos, 'participantInfos').map(raw => {
+      const info = requireObject(raw, 'participantInfo');
+      return { p: find(w.participants, x => x.Id === info.ParticipantId, `participant ${info.ParticipantId}`), seatId: checkKind('guid', info.SeatId, 'SeatId') };
+    });
+    for (const { p, seatId } of list) checkParticipantSeat(w, seatId, p);
+    for (const { p, seatId } of list) p.AssignedAt = seatId;
+    ev('ParticipantsUpdated', copy(list.map(x => participantView(w, x.p))));
+    notify(w, 'participants', { action: 'assigned' });
+    return true;
+  },
+  'PrepareParticipant2.UnassignParticipantsToSeatAsync': (w, a, ev) => {
+    const ids = new Set(requireArray(a.participantIds, 'participantIds'));
+    const changed = w.participants.filter(p => ids.has(p.Id));
+    for (const p of changed) p.AssignedAt = EMPTY_GUID;
+    ev('ParticipantsUpdated', copy(changed.map(p => participantView(w, p))));
+    notify(w, 'participants', { action: 'unassigned' });
+    return true;
+  },
+
   // --- ControlPresentationApi ---
   'ControlPresentationApi.RequestPresentationStateAsync': (w, _a, ev) => {
     ev('PresentationStateChanged', w.presentation);
@@ -548,10 +695,11 @@ const HANDLERS = {
 /**
  * Create a DCNM world. Seats are numbered 1..n: participant seats first, then interpreter seats.
  * @param {{ seats?: {id?: string, name?: string}[], interpreterSeats?: {id?: string, name?: string}[], meetingId?: string,
- *   meetingTitle?: string, languages?: object[], meetingLanguageIds?: string[], presentation?: boolean }} [options]
+ *   meetingTitle?: string, languages?: object[], meetingLanguageIds?: string[], presentation?: boolean,
+ *   persons?: object[], participants?: object[], participantGroupId?: string | null }} [options]
  * @returns {DcnmWorld}
  */
-export function createDcnmWorld({ seats = [], interpreterSeats = [], meetingId = randomUUID(), meetingTitle = 'Meeting', languages, meetingLanguageIds, presentation = false } = {}) {
+export function createDcnmWorld({ seats = [], interpreterSeats = [], meetingId = randomUUID(), meetingTitle = 'Meeting', languages, meetingLanguageIds, presentation = false, persons = [], participants = [], participantGroupId = null } = {}) {
   const area = { Id: randomUUID(), Name: 'Main area', AreaNumber: 1, AreaType: ENUMS.DcnmAreaType[0], AreaControllerId: EMPTY_GUID };
 
   const seatList = [
@@ -664,6 +812,12 @@ export function createDcnmWorld({ seats = [], interpreterSeats = [], meetingId =
     audio: { gains, equalizers, selections, routingState: false, muted: false, vuOn: false, vuLevels },
     systemGains: ENUMS.DcnmGainSettingType.map(GainSettingType => ({ GainSettingType, GainSettingValue: 0 })),
     presentation: Boolean(presentation),
+    /** DcnmUserAccountPreparationInfo-like: { UserId, UserName, Password, PinCode, User } (WO-106) */
+    persons: copy(persons),
+    /** DcnmParticipantPreparationInfo2-like, participants of meetings (WO-106) */
+    participants: copy(participants),
+    /** MeetingConstants.PARTICIPANTGROUPID: persons must be in it (null = not checked) */
+    participantGroupId,
     listeners: [],
   };
 }
@@ -703,7 +857,7 @@ export function vuReadings(world) {
 /**
  * Register a change listener.
  * @param {DcnmWorld} world
- * @param {(kind: 'languages' | 'meetingLanguages' | 'desks' | 'presentation' | 'seats' | 'audio', detail: object) => void} fn
+ * @param {(kind: 'languages' | 'meetingLanguages' | 'desks' | 'presentation' | 'seats' | 'audio' | 'persons' | 'participants', detail: object) => void} fn
  * @returns {() => void} unsubscribe
  */
 export function onChange(world, fn) {

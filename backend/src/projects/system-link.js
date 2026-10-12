@@ -1,7 +1,7 @@
 // Projects follow the connected DICENTIS system (DEC-025, WO-093): when the main connection reaches a system, the
 // project of that system is opened (or created). A system is identified by type + host + port; its label is the room
-// name (wired) / WAP host name (wireless) when the system reports one within a few seconds, else type + host.
-const TYPE_LABEL = { wired: 'DICENTIS', wireless: 'DICENTIS Wireless', dcn: 'DCN', 'dcn-smd': 'DCN' };
+// name (wired) / WAP or CCSD-CU host name (wireless, ccs1000) when the system reports one within a few seconds, else type + host.
+const TYPE_LABEL = { wired: 'DICENTIS', wireless: 'DICENTIS Wireless', dcn: 'DCN', 'dcn-smd': 'DCN', ccs1000: 'CCS 1000 D' };
 
 /**
  * Identity of a system: type + host + port; a simulated system (DEC-026) by its profile id, so its projects stay its
@@ -12,7 +12,7 @@ export const systemKey = s => (s.simulated ? `sim:${s.simulated.id}` : `${s.syst
 
 /** The name the system reports about itself, if any (raw topics in the cache). */
 function reportedName(cache, system) {
-  if (system === 'wireless') return cache.get('wirelessSystemInfo')?.data?.Hostname ?? null;
+  if (system === 'wireless' || system === 'ccs1000') return cache.get('wirelessSystemInfo')?.data?.Hostname ?? null;
   if (system === 'wired') return cache.get('roomName')?.data?.roomName ?? null;
   return null;
 }

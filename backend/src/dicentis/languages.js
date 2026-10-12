@@ -1,5 +1,6 @@
 // Languages over the DCNM API (WO-102, DEC-029): system language list, the active meeting's languages, interpreter desk
 // output languages. DCNM payloads → plain topics, request bodies → DCNM data classes. Pure functions.
+import { toConstructor } from '../dcnm/shape.js';
 import { AppError } from '../lib/errors.js';
 
 export const EMPTY_GUID = '00000000-0000-0000-0000-000000000000';
@@ -44,7 +45,7 @@ export function languageInfo(body, existing = null) {
   const label = body?.label === undefined && existing ? existing.EnLabel : text(body?.label, 'label');
   const short = body?.short === undefined ? existing?.ShortAbbreviation ?? abbreviation.toLowerCase().slice(0, 3) : String(body.short).trim().slice(0, 8);
   const native = body?.native === undefined ? existing?.OrgLabel ?? label : String(body.native).trim().slice(0, 60) || label;
-  return { ...(existing ?? { UserDefined: true, OrderId: 0 }), Abbreviation: abbreviation, ShortAbbreviation: short, EnLabel: label, OrgLabel: native };
+  return toConstructor('DcnmLanguageInfo', { ...(existing ?? { UserDefined: true, OrderId: 0 }), Abbreviation: abbreviation, ShortAbbreviation: short, EnLabel: label, OrgLabel: native });
 }
 
 /** Body { languageId, danteOut?, stream2?: { enabled?, headroom?, danteOut?, floorFill? } } + the raw meeting language → update. */
@@ -61,7 +62,7 @@ export function meetingLanguageUpdate(body, raw) {
     if (typeof s2.headroom !== 'number' || s2.headroom < lo || s2.headroom > hi) throw bad(`stream2.headroom must be within ${lo} … ${hi} dB`);
     out.Stream2Headroom = s2.headroom;
   }
-  return out;
+  return toConstructor('DcnmMeetingLanguageInfo', out); // the read object also has Minimum/MaximumStream2Headroom (WO-115)
 }
 
 /**
@@ -98,5 +99,5 @@ export function deskUpdate(body, raw, meetingIds) {
   // B and C can only output a language of their selectable set.
   if (real(out.OutBLanguageId) && !out.OutputLanguageSetB.includes(out.OutBLanguageId)) out.OutputLanguageSetB = [...out.OutputLanguageSetB, out.OutBLanguageId];
   if (real(out.OutCLanguageId) && !out.OutputLanguageSetC.includes(out.OutCLanguageId)) out.OutputLanguageSetC = [...out.OutputLanguageSetC, out.OutCLanguageId];
-  return out;
+  return toConstructor('DcnmMeetingDeskInfo', out);
 }

@@ -134,10 +134,10 @@ describe('domain on the wired mock', () => {
     assert.equal((await call(backend, 'PUT', '/voting/parameters', { mode: 1 })).body.error.code, 'NOT_SUPPORTED');
   });
 
-  test('participant editing is not supported by the Conference Protocol (DEC-023)', async () => {
+  test('participant editing needs the full DICENTIS API: without the dicentis-bridge it is not supported (DEC-023, DEC-034)', async () => {
     const r = await call(backend, 'POST', '/participants', { name: 'New Person' });
     assert.equal(r.body.error.code, 'NOT_SUPPORTED');
-    assert.match(r.body.error.message, /WO-081/);
+    assert.match(r.body.error.message, /dicentis-bridge/);
     assert.equal((await call(backend, 'PUT', '/seats/seat-1/participant', { participantId: null })).body.error.code, 'NOT_SUPPORTED');
   });
 });

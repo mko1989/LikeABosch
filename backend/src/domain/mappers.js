@@ -21,21 +21,21 @@ const FEATURES = {
     discussion: true, muteMicrophones: true, requestQueueAdd: false, clearDiscussion: false, priorityCalls: false, speechTimers: true,
     speechTimeAdjust: true, meetings: true, agenda: true, votingPrepared: true, votingAdHoc: true, votingParameters: false, votingAcceptReject: true,
     interpretation: true, files: true, plugins: true, presentation: true, masterVolume: true, illumination: true,
-    participantsEdit: false, identificationMode: false, powerStandby: false, seatDiagnostics: false, dcnControl: false, dcnStream: false, meetingControl: true, wapConfig: false,
+    participantsEdit: false, identificationMode: false, powerStandby: false, seatDiagnostics: false, dcnControl: false, dcnStream: false, meetingControl: true, wapConfig: false, micSensitivity: false, voting: true, participants: true,
   },
   // DCN NG via the DCN-SW API (DEC-017, WO-062). Wired-only views stay off until WO-063 gives DCN its own versions.
   dcn: {
     discussion: true, muteMicrophones: false, requestQueueAdd: true, clearDiscussion: true, priorityCalls: true, speechTimers: false,
     speechTimeAdjust: false, meetings: false, agenda: false, votingPrepared: false, votingAdHoc: false, votingParameters: false, votingAcceptReject: false,
     interpretation: false, files: false, plugins: false, presentation: false, masterVolume: false, illumination: false,
-    participantsEdit: false, identificationMode: false, powerStandby: false, seatDiagnostics: false, dcnControl: true, dcnStream: false, meetingControl: true, wapConfig: false,
+    participantsEdit: false, identificationMode: false, powerStandby: false, seatDiagnostics: false, dcnControl: true, dcnStream: false, meetingControl: true, wapConfig: false, micSensitivity: false, voting: true, participants: true,
   },
   // DCN Streaming Meeting Data (DEC-018): read-only, so every control feature is off.
   'dcn-smd': {
     discussion: true, muteMicrophones: false, requestQueueAdd: false, clearDiscussion: false, priorityCalls: false, speechTimers: false,
     speechTimeAdjust: false, meetings: false, agenda: false, votingPrepared: false, votingAdHoc: false, votingParameters: false, votingAcceptReject: false,
     interpretation: false, files: false, plugins: false, presentation: false, masterVolume: false, illumination: false,
-    participantsEdit: false, identificationMode: false, powerStandby: false, seatDiagnostics: false, dcnControl: false, dcnStream: true, readOnly: true, meetingControl: false, wapConfig: false,
+    participantsEdit: false, identificationMode: false, powerStandby: false, seatDiagnostics: false, dcnControl: false, dcnStream: true, readOnly: true, meetingControl: false, wapConfig: false, micSensitivity: false, voting: true, participants: true,
   },
   wireless: {
     discussion: true, muteMicrophones: false, requestQueueAdd: true, clearDiscussion: true, priorityCalls: true, speechTimers: false,
@@ -43,12 +43,21 @@ const FEATURES = {
     interpretation: false, files: false, plugins: false, presentation: false, masterVolume: false, illumination: false,
     participantsEdit: true, identificationMode: true, powerStandby: true, seatDiagnostics: true, dcnControl: false, dcnStream: false, meetingControl: false,
     wapConfig: true, // the WAP web UI's configuration endpoints (DEC-024)
+    micSensitivity: false, voting: true, participants: true,
+  },
+  // CCS 1000 D (DEC-032): the wireless dialect without participants and voting, plus microphone sensitivity per seat.
+  ccs1000: {
+    discussion: true, muteMicrophones: false, requestQueueAdd: true, clearDiscussion: true, priorityCalls: true, speechTimers: false,
+    speechTimeAdjust: false, meetings: false, agenda: false, votingPrepared: false, votingAdHoc: false, votingParameters: false, votingAcceptReject: false,
+    interpretation: false, files: false, plugins: false, presentation: false, masterVolume: false, illumination: false,
+    participantsEdit: false, identificationMode: false, powerStandby: true, seatDiagnostics: false, dcnControl: false, dcnStream: false, meetingControl: false,
+    wapConfig: false, micSensitivity: true, voting: false, participants: false,
   },
 };
 
 /**
- * @param {'wired' | 'wireless' | 'dcn' | 'dcn-smd'} system
- * @param {string[]} permissions  wired permissions; dcn: the true `Is*Allowed` flags (ignored for wireless: the WAP enforces rights)
+ * @param {'wired' | 'wireless' | 'dcn' | 'dcn-smd' | 'ccs1000'} system
+ * @param {string[]} permissions  wired permissions; dcn: the true `Is*Allowed` flags (ignored for wireless / ccs1000: the device enforces rights)
  */
 export function capabilities(system, permissions = []) {
   const features = FEATURES[system] ?? FEATURES.wired;
@@ -71,16 +80,18 @@ export function capabilities(system, permissions = []) {
       },
     };
   }
-  const has = p => system === 'wireless' || permissions.includes(p);
+  const has = p => system === 'wireless' || system === 'ccs1000' || permissions.includes(p);
+  const ccs = system === 'ccs1000';
   return {
     system,
     features,
     actions: {
       manageDiscussion: features.discussion && has('canManageMeeting'),
       muteMicrophones: features.muteMicrophones && has('canManageMeeting') && has('canDeactivateMicrophone'),
-      controlVoting: has('canControlVoting'),
+      controlVoting: !ccs && has('canControlVoting'),
       powerOn: has('canSwitchSystemPowerOn'),
-      powerOff: has('canSwitchSystemPowerOff'),
+      powerOff: !ccs && has('canSwitchSystemPowerOff'), // CCS 1000 D: on / standby only
+      powerStandby: features.powerStandby && (ccs || has('canSwitchSystemPowerOff')),
       editParticipants: features.participantsEdit,
       controlMeeting: features.meetingControl && has('canManageMeeting'),
     },
@@ -289,6 +300,20 @@ export const wireless = {
       nfc: p.nfc || null,
     }));
   },
+};
+
+// ---------------------------------------------------------------- ccs1000 (DEC-032)
+// Same raw topics as wireless (CCS_TOPICS); no participants, no voting, seats without battery data but with `mode`.
+const CCS_SEAT_MODE = { 0: 'normal', 2: 'button', 3: 'ptt' };
+
+export const ccs1000 = {
+  ...wireless,
+  seats(get) {
+    const raw = new Map((get('wirelessSeats') ?? []).map(s => [String(s.id), s]));
+    return wireless.seats(get)?.map(s => ({ ...s, person: '', canVote: false, diagnostics: null, micMode: CCS_SEAT_MODE[raw.get(s.id)?.mode] ?? null }));
+  },
+  voting: () => undefined,
+  participants: () => undefined,
 };
 
 // ---------------------------------------------------------------- dcn (WO-062)
@@ -571,18 +596,18 @@ export const dcnSmd = {
 
 /** Domain topic → { mapper name, source topics per system } */
 export const DOMAIN_TOPICS = {
-  'domain.seats': { fn: 'seats', wired: ['seats'], wireless: ['wirelessSeats', 'wirelessParticipants'],
+  'domain.seats': { fn: 'seats', ccs1000: ['wirelessSeats'], wired: ['seats'], wireless: ['wirelessSeats', 'wirelessParticipants'],
     dcn: ['dcnSeatAssignments', 'dcnMicStatus', 'dcnSpeakers', 'dcnRequests', 'dcnRespond', 'dcnDelegates', 'dcnRegisteredDelegates', 'dcnBridge', 'smdInterpretation'],
     'dcn-smd': ['smdSeats', 'smdParticipants', 'smdInterpretation'] },
-  'domain.meeting': { fn: 'meeting', wired: ['meetings', 'meetingInfo'], wireless: [], dcn: ['dcnMeetings', 'dcnActiveMeeting', 'dcnActiveSession', 'dcnSessions'], 'dcn-smd': [] },
-  'domain.interpreterDesks': { fn: 'interpreterDesks', wired: [], wireless: [], dcn: ['smdInterpretation', 'smdSeats'], 'dcn-smd': ['smdInterpretation', 'smdSeats'] },
-  'domain.discussion': { fn: 'discussion', wired: ['discussionList', 'seats'], wireless: ['wirelessSpeakers', 'wirelessWaitingList'],
+  'domain.meeting': { fn: 'meeting', ccs1000: [], wired: ['meetings', 'meetingInfo'], wireless: [], dcn: ['dcnMeetings', 'dcnActiveMeeting', 'dcnActiveSession', 'dcnSessions'], 'dcn-smd': [] },
+  'domain.interpreterDesks': { fn: 'interpreterDesks', ccs1000: [], wired: [], wireless: [], dcn: ['smdInterpretation', 'smdSeats'], 'dcn-smd': ['smdInterpretation', 'smdSeats'] },
+  'domain.discussion': { fn: 'discussion', ccs1000: ['wirelessSpeakers', 'wirelessWaitingList'], wired: ['discussionList', 'seats'], wireless: ['wirelessSpeakers', 'wirelessWaitingList'],
     dcn: ['dcnSpeakers', 'dcnRequests', 'dcnRespond', 'dcnRequestsToRespond', 'dcnSeatAssignments', 'dcnDelegates'],
     'dcn-smd': ['smdDiscussion', 'smdSeats', 'smdParticipants'] },
-  'domain.voting': { fn: 'voting', wired: ['votingState', 'votingInfo', 'votingResults'], wireless: ['wirelessVotingState', 'wirelessVotingResults', 'wirelessVoting'],
+  'domain.voting': { fn: 'voting', ccs1000: [], wired: ['votingState', 'votingInfo', 'votingResults'], wireless: ['wirelessVotingState', 'wirelessVotingResults', 'wirelessVoting'],
     dcn: ['dcnVoting', 'dcnVotingScript', 'dcnVoteResults', 'dcnVotingQuorum', 'dcnBridge'], 'dcn-smd': ['smdVoting'] },
-  'domain.power': { fn: 'power', wired: ['systemPowerMode'], wireless: ['wirelessSystemStatus'], dcn: [], 'dcn-smd': [] },
-  'domain.participants': { fn: 'participants', wired: ['participants', 'participantSeats', 'seats'], wireless: ['wirelessParticipants', 'wirelessSeats'],
+  'domain.power': { fn: 'power', ccs1000: ['wirelessSystemStatus'], wired: ['systemPowerMode'], wireless: ['wirelessSystemStatus'], dcn: [], 'dcn-smd': [] },
+  'domain.participants': { fn: 'participants', ccs1000: [], wired: ['participants', 'participantSeats', 'seats'], wireless: ['wirelessParticipants', 'wirelessSeats'],
     dcn: ['dcnDelegates', 'dcnRegisteredDelegates', 'dcnSeatAssignments', 'dcnActiveMeeting', 'dcnBridge'],
     'dcn-smd': ['smdParticipants', 'smdMeeting', 'smdSeats'] },
 };

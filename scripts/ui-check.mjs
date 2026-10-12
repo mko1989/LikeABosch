@@ -15,6 +15,8 @@ import { createMockCompanion } from '../mock/companion/server.js';
 import { createMockWirelessServer } from '../mock/wireless/server.js';
 import { createMockDcnBridge } from '../mock/dcn/server.js';
 import { createMockSmdServer } from '../mock/dcn-smd/server.js';
+import { createMockKramerMv6 } from '../mock/switchers/kramer-mv6.js';
+import { createMockTvOneCorio } from '../mock/switchers/tvone-corio.js';
 import { start } from '../backend/src/server.js';
 import { loadConfig } from '../backend/src/config.js';
 
@@ -23,15 +25,16 @@ setTimeout(() => { console.log('UI CHECK FAILED: timed out after 5 minutes'); pr
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const electron = createRequire(join(root, 'launcher/package.json'))('electron');
-// Options: --system wired|wireless|dcn|both|all (default all; both = wired + wireless), anywhere. Positional: outDir, routes.
+// Options: --system wired|wireless|ccs1000|dcn|dcn-smd|both|all (default all; both = wired + wireless), anywhere. Positional: outDir, routes.
 const sysArg = process.argv.indexOf('--system');
 const args = process.argv.slice(2).filter((a, i, arr) => a !== '--system' && arr[i - 1] !== '--system');
 const outDir = args[0] ?? join(root, 'data/ui-check');
-const SYSTEM_SETS = { both: ['wired', 'wireless'], all: ['wired', 'wireless', 'dcn', 'dcn-smd'] };
+const SYSTEM_SETS = { both: ['wired', 'wireless'], all: ['wired', 'wireless', 'ccs1000', 'dcn', 'dcn-smd'] };
 const systems = sysArg > -1 ? SYSTEM_SETS[process.argv[sysArg + 1]] ?? [process.argv[sysArg + 1]] : SYSTEM_SETS.all;
 const positional = args.slice(1);
 const routes = positional.length ? positional : ['overview', 'discussion', 'meetings', 'agenda', 'voting', 'participants', 'seating', 'interpretation', 'audio', 'system', 'files', 'room', 'companion', 'connection'];
 const WIRELESS_ROUTES = ['overview', 'discussion', 'voting', 'participants', 'seating', 'system', 'room', 'discussion-settings', 'wap-audio', 'wap-seats', 'seat-displays', 'connection'];
+const CCS_ROUTES = ['overview', 'discussion', 'system', 'ccs-microphones', 'room', 'connection'];
 const DCN_ROUTES = ['overview', 'discussion', 'voting', 'participants', 'seating', 'system', 'dcn', 'room', 'connection'];
 const SMD_ROUTES = ['overview', 'discussion', 'voting', 'participants', 'seating', 'system', 'dcn-stream', 'room', 'connection'];
 mkdirSync(outDir, { recursive: true });
@@ -40,6 +43,9 @@ const mock = await createMockWiredServer();
 // WO-101: the full DICENTIS API next to it (linked mock dicentis-bridge), as in a simulated wired system
 const dcnmMock = await createLinkedDcnmBridge(mock);
 // WO-099: a mock Companion for the Companion scenario (button labels show up in the picker's frame)
+// WO-112: Kramer MV-6 and tvONE CORIO mocks for the switcher steps of the room scenario
+const kramerMock = await createMockKramerMv6();
+const tvoneMock = await createMockTvOneCorio();
 const companionMock = await createMockCompanion({ labels: { '1/0/0': 'Cam 1', '1/0/1': 'Cam 2', '1/0/2': 'Seat 3 live', '1/1/0': 'Lights' } });
 const dataDir = mkdtempSync(join(tmpdir(), 'ui-check-'));
 const backend = await start(loadConfig({
@@ -62,7 +68,10 @@ const voter = setInterval(() => {
 
 /** Run one headless Electron pass; resolves to true if it passed. */
 async function runElectron(theme, passRoutes, system = 'wired', target = { backend, mock }) {
-  const env = { ...process.env, UI_CHECK_COMPANION_PORT: process.env.UI_CHECK_COMPANION_PORT ?? String(companionMock.port) }; // a real Companion: set it
+  const env = {
+    ...process.env, UI_CHECK_COMPANION_PORT: process.env.UI_CHECK_COMPANION_PORT ?? String(companionMock.port), // a real Companion: set it
+    UI_CHECK_KRAMER_PORT: String(kramerMock.port), UI_CHECK_TVONE_PORT: String(tvoneMock.port),
+  };
   delete env.ELECTRON_RUN_AS_NODE;
   const child = spawn(electron, [join(root, 'scripts/ui-check-electron.cjs'), target.backend.url, outDir, theme, system, ...passRoutes], { env, stdio: ['ignore', 'pipe', 'ignore'] });
   let buf = '';
@@ -136,6 +145,26 @@ if (systems.includes('wireless')) {
   rmSync(wDataDir, { recursive: true, force: true });
 }
 
+// CCS 1000 D pass (WO-111): the wireless mock's ccs1000 variant.
+if (systems.includes('ccs1000')) {
+  const cmock = await createMockWirelessServer({ longPollMs: 1000, variant: 'ccs1000' });
+  const cDataDir = mkdtempSync(join(tmpdir(), 'ui-check-ccs1000-'));
+  const cbackend = await start(loadConfig({
+    PORT: '0', LOG_LEVEL: 'silent', DATA_DIR: cDataDir, DICENTIS_SYSTEM: 'ccs1000',
+    DICENTIS_HOST: '127.0.0.1', DICENTIS_PORT: String(cmock.port), DICENTIS_USER: 'admin', DICENTIS_PASSWORD: 'admin',
+  }));
+  if (cbackend.services.manager.client?.state !== 'loggedIn') await once(cbackend.services.manager.client, 'loggedIn');
+  await cbackend.services.poller.idle();
+  for (const theme of ['light', 'dark']) {
+    if (cbackend.services.manager.client?.state !== 'loggedIn') await cbackend.services.manager.connect();
+    await cbackend.services.poller.idle();
+    if (!(await runElectron(theme, positional.length ? routes.filter(r => CCS_ROUTES.includes(r)) : CCS_ROUTES, 'ccs1000', { backend: cbackend, mock: cmock }))) failed = true;
+  }
+  await cbackend.close();
+  await cmock.close();
+  rmSync(cDataDir, { recursive: true, force: true });
+}
+
 // DCN pass (WO-063): same UI against the mock dcn-bridge, plus the mock meeting data stream next to it (DEC-020).
 if (systems.includes('dcn')) {
   const dmock = await createMockDcnBridge({ authDelayMs: 20 });
@@ -187,6 +216,8 @@ await backend.close();
 await dcnmMock.close();
 await mock.close();
 await companionMock.close();
+await kramerMock.close();
+await tvoneMock.close();
 rmSync(dataDir, { recursive: true, force: true });
 console.log(failed ? 'UI CHECK FAILED' : 'UI CHECK OK');
 process.exit(failed ? 1 : 0);

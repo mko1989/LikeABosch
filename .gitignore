@@ -14,6 +14,8 @@ bridge/dicentis/bin/
 bridge/dicentis/obj/
 # Bosch's original documents (copyrighted): kept locally, not published. The extracted specs live in docs/protocol/.
 docs/source/
+# Bosch CCS 1000 D material added by the user (REST API HTML, SynopticControl example, firmware image), WO-111
+docs/research/ccs-1000/
 # Scratch notes from chat sessions
 last_response.md
 next.md
@@ -24,6 +26,8 @@ docs/protocol/conference/*
 docs/protocol/wireless-rest/swagger.yaml
 docs/protocol/wireless-rest/swagger.json
 docs/protocol/wireless-rest/README.md
+docs/protocol/ccs1000-rest/swagger.yaml
+docs/protocol/ccs1000-rest/swagger.json
 docs/protocol/dcn-swapi/*
 !docs/protocol/dcn-swapi/BRIDGE.md
 docs/protocol/dcnm-api/*
@@ -34,3 +38,10 @@ bridge/dcn/src/Fake/Fake.generated.cs
 # .NET build output anywhere under bridge/ (also tools)
 bridge/**/bin/
 bridge/**/obj/
+# Companion modules (WO-118/119, DEC-036): only the two modules written here are tracked; the user's older modules
+# (with vendor PDFs / HTML, packages) stay local.
+companion-module-dev/*
+!companion-module-dev/companion-module-bosch-discussion-system/
+!companion-module-dev/companion-module-likeabosch/
+companion-module-dev/*/pkg/
+companion-module-dev/*/*.tgz

@@ -9,6 +9,7 @@ const FILTERS = [['all', 'All seats'], ['assigned', 'With participant'], ['free'
 export default {
   id: 'seating',
   title: 'Seating',
+  feature: 'participants',
   topics: ['domain.seats', 'domain.participants'],
   mount(el, { store, api }) {
     const wireless = store.system === 'wireless'; // seats are assigned in Participants (WAP database)

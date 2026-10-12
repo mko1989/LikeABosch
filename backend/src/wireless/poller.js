@@ -25,17 +25,23 @@ export class WirelessPoller {
     this.staggerMs = staggerMs;
     /** @type {import('./client.js').WirelessClient | null} */
     this.client = null;
+    /** topic list of the attached system: WIRELESS_TOPICS, or CCS_TOPICS for a CCS 1000 D (DEC-032) */
+    this.topics = WIRELESS_TOPICS;
     this.generation = 0; // bumps on every (re)start; old loops notice and stop
     this.wakers = new Set();
     this.onLoggedIn = () => this.#start();
   }
 
-  get topicNames() { return WIRELESS_TOPICS.map(t => t.topic); }
+  get topicNames() { return this.topics.map(t => t.topic); }
 
-  /** @param {import('./client.js').WirelessClient} client */
-  attach(client) {
+  /**
+   * @param {import('./client.js').WirelessClient} client
+   * @param {typeof WIRELESS_TOPICS} [topics]  the system's topic list (CCS 1000 D: CCS_TOPICS)
+   */
+  attach(client, topics = WIRELESS_TOPICS) {
     this.detach();
     this.client = client;
+    this.topics = topics;
     client.on('loggedIn', this.onLoggedIn);
     if (client.state === 'loggedIn') this.#start();
   }
@@ -49,7 +55,7 @@ export class WirelessPoller {
 
   /** Fetch every topic now (e.g. after a write through the passthrough), without waiting for the poll loop. */
   async refreshAll() {
-    await Promise.all(WIRELESS_TOPICS.map(t => this.#fetch(t, false)));
+    await Promise.all(this.topics.map(t => this.#fetch(t, false)));
   }
 
   /** Resolves when the initial fetch after the latest login is done. */
@@ -60,7 +66,7 @@ export class WirelessPoller {
     this.#wakeAll();
     this.initial = this.refreshAll().then(async () => {
       this.log.info(`synchronised ${this.cache.topics.size} wireless topics (${this.cache.unavailable.size} unavailable)`);
-      for (const t of WIRELESS_TOPICS.filter(x => x.poll)) {
+      for (const t of this.topics.filter(x => x.poll)) {
         if (generation !== this.generation) return;
         this.#loop(t, generation);
         await this.#sleep(this.staggerMs);

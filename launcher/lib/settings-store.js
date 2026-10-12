@@ -6,7 +6,7 @@ import { join } from 'node:path';
 export const DEFAULT_SETTINGS = {
   system: 'wired',
   host: '',
-  port: null,          // null = system default (31416 wired / 80 wireless / 9480 dcn bridge / 20000 dcn-smd)
+  port: null,          // null = system default (31416 wired / 80 wireless and ccs1000 / 9480 dcn bridge / 20000 dcn-smd)
   user: '',
   dcnServer: '',       // dcn: DCN-SW server as seen from the bridge; '' = backend default tcp://localhost:9461
   smdStream: true,     // dcn: also read the meeting data stream for live data (DEC-020)
@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS = {
   dcnmDevice: 'LikeABosch', // wired: device name the bridge connects as ('' = not as a device)
   dcnmServer: '',      // wired: DICENTIS server for the API's OpenAsync; '' = the API finds it
   manageBridges: true, // Windows: start the bridge the settings need on this PC (DEC-022)
+  autoBridges: true,   // Windows: also start a bridge whose Bosch software is installed here (DEC-037)
   dcnBridgeDllDir: '', // dcn-bridge --dll-dir; '' = its own search (DCN-SW folder)
   dcnmDllDir: '',      // dicentis-bridge --dll-dir; '' = its own search (Program Files\Bosch\DICENTIS)
   dcnBridgeExe: '',    // path of dcn-bridge.exe; '' = bundled / build output
@@ -31,7 +32,7 @@ export const DEFAULT_SETTINGS = {
 };
 
 const VALIDATORS = {
-  system: v => ['wired', 'wireless', 'dcn', 'dcn-smd'].includes(v),
+  system: v => ['wired', 'wireless', 'dcn', 'dcn-smd', 'ccs1000'].includes(v),
   host: v => typeof v === 'string' && v.length <= 253,
   port: v => v === null || (Number.isInteger(v) && v > 0 && v < 65536),
   user: v => typeof v === 'string',
@@ -45,11 +46,12 @@ const VALIDATORS = {
   dcnmDevice: v => typeof v === 'string' && v.length <= 100,
   dcnmServer: v => typeof v === 'string' && v.length <= 253,
   manageBridges: v => typeof v === 'boolean',
+  autoBridges: v => typeof v === 'boolean',
   dcnBridgeDllDir: v => typeof v === 'string' && v.length <= 1024,
   dcnmDllDir: v => typeof v === 'string' && v.length <= 1024,
   dcnBridgeExe: v => typeof v === 'string' && v.length <= 1024,
   dcnmExe: v => typeof v === 'string' && v.length <= 1024,
-  simulate: v => ['', 'wired', 'wireless', 'dcn', 'dcn-smd'].includes(v),
+  simulate: v => ['', 'wired', 'wireless', 'dcn', 'dcn-smd', 'ccs1000'].includes(v),
   simulateSeats: v => Number.isInteger(v) && v >= 1 && v <= 500,
   tlsInsecure: v => typeof v === 'boolean',
   autoConnect: v => typeof v === 'boolean',
@@ -134,8 +136,9 @@ export function createSettingsStore({ dir, encryptor }) {
  * @param {string} password
  * @param {string} [dataDir]  only for tests: without it the backend uses the shared per-user folder (DEC-016)
  * @param {string} [bridgeToken]  dcn bridge token
+ * @param {{ dcnmAuto?: boolean }} [options]  dcnmAuto: the launcher runs the dicentis-bridge on its own (DEC-037)
  */
-export function backendEnv(settings, password, dataDir, bridgeToken = '') {
+export function backendEnv(settings, password, dataDir, bridgeToken = '', { dcnmAuto = false } = {}) {
   const env = {
     PORT: String(settings.webPort),
     BIND_HOST: settings.lanAccess ? '0.0.0.0' : '127.0.0.1',
@@ -150,9 +153,10 @@ export function backendEnv(settings, password, dataDir, bridgeToken = '') {
   if (settings.port) env.DICENTIS_PORT = String(settings.port);
   if (settings.user) env.DICENTIS_USER = settings.user;
   if (password) env.DICENTIS_PASSWORD = password;
-  if (settings.system === 'wired' && settings.dcnmBridge) {
+  // dcnmAuto: the launcher started the dicentis-bridge on its own (DICENTIS software found, DEC-037): use it.
+  if (settings.system === 'wired' && (settings.dcnmBridge || dcnmAuto)) {
     env.DICENTIS_DCNM_BRIDGE = 'true';
-    env.DICENTIS_DCNM_HOST = settings.dcnmHost || '127.0.0.1';
+    env.DICENTIS_DCNM_HOST = (settings.dcnmBridge && settings.dcnmHost) || '127.0.0.1';
     if (settings.dcnmPort) env.DICENTIS_DCNM_PORT = String(settings.dcnmPort);
     env.DICENTIS_DCNM_DEVICE = settings.dcnmDevice ?? '';
     if (settings.dcnmServer) env.DICENTIS_DCNM_SERVER = settings.dcnmServer;

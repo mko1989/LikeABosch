@@ -17,6 +17,7 @@
     "smoke:wired": "node --env-file-if-exists=.env scripts/smoke-wired.mjs",
     "ui:check": "node scripts/ui-check.mjs",
     "mock:wireless": "node mock/wireless/server.js",
+    "mock:ccs1000": "node mock/wireless/server.js --ccs1000",
     "mock:dcn": "node mock/dcn/server.js",
     "mock:dcn-smd": "node mock/dcn-smd/server.js",
     "mock:dcnm": "node mock/dcnm/server.js",
