@@ -138,7 +138,7 @@ Statuses: `draft` · `ready` · `in-progress` · `blocked` · `review` · `done`
 | [WO-118](WO-118-companion-module-likeabosch.md) | Companion module `likeabosch` (quick API + bridges via LikeABosch, DEC-036) | 5 | review | 117 | 2026-10-12 |
 | [WO-119](WO-119-companion-module-bosch-discussion-system.md) | Companion module `bosch-discussion-system`: all Bosch systems, network APIs only (DEC-036) | 5 | review | 111, 075, 032, 066 | 2026-10-12 |
 | [WO-120](WO-120-auto-start-bridges.md) | Launcher starts the bridges by itself when the Bosch DLLs are installed (DEC-037) | 3 | review | 080 | 2026-10-12 |
-| [WO-121](WO-121-release-v0-1-2.md) | Release v0.1.2 (WO-106, 111, 112, 115, 117–120) | 4 | in-progress | 106, 111, 112, 115, 117–120 | 2026-10-12 |
+| [WO-121](WO-121-release-v0-1-2.md) | Release v0.1.2 (WO-106, 111, 112, 115, 117–120) | 4 | done | 106, 111, 112, 115, 117–120 | 2026-10-12 |
 
 ## Suggested order / parallelism
 

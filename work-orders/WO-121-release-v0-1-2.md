@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | in-progress |
+| **Status** | done |
 | **Phase** | 4 Hardening |
 | **Depends on** | WO-106, WO-111, WO-112, WO-115, WO-117, WO-118, WO-119, WO-120 |
 | **Assignee** | Claude Opus (main) |
@@ -27,7 +27,7 @@ specs stripped of Bosch's text), tag, `gh release create` with the 6 assets and 
 - [x] `npm test` green on the release commit.
 - [x] `npm run dist` produces the 6 assets `LikeABosch-0.1.2-*`; no Bosch text in the bundles (scan as in WO-107,
       plus the CCS 1000 D swagger).
-- [ ] Tag `v0.1.2` pushed; release published with the assets.
+- [x] Tag `v0.1.2` pushed; release published with the assets.
 
 ## Work log
 - 2026-10-12 (Claude Opus): created; features committed (`d1032b0`); versions bumped with
@@ -39,7 +39,15 @@ specs stripped of Bosch's text), tag, `gh release create` with the 6 assets and 
   control in docs/protocol: 2/1/2/1 files. Companion module packages rebuilt from the release code
   (`bosch-discussion-system-1.0.0.tgz`, `likeabosch-1.0.0.tgz`) for the release as extra assets.
 
+- 2026-10-12 (Claude Opus): committed `e628c7f`, annotated tag `v0.1.2`, pushed main + tag. Release
+  https://github.com/mko1989/LikeABosch/releases/tag/v0.1.2 (not a draft, not a pre-release): 6 installers + 2 Companion
+  module packages, sizes match the local files. Notes: what's new (CCS 1000 D, switchers, wired participants, auto
+  bridges, Companion API + modules, DCNM payload fix), downloads, install (unsigned), known limits, compare link.
+  Status → done.
+
 ## Decisions
 - Version 0.1.2 as the user asked (it carries new features; a minor bump would also have fitted).
 
 ## Handoff
+Delivered: release v0.1.2 (6 installers, 2 Companion module packages). Not signed (WO-029). The feature WOs stay in
+review until checked on real hardware (WO-082, WO-113, WO-114) and inside a real Companion.
