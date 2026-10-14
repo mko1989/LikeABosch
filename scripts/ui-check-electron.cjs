@@ -224,6 +224,14 @@ app.whenReady().then(async () => {
           ${holder5 ? `await call('PUT', '/seats/5/participant', { participantId: '${holder5.id}' });` : ''}
         })`);
         ok = ok && await waitFor(`${people}.then(l => l.length === ${before.length} && l.find(p => p.name === 'Anna de Vries').seatId === 1)`);
+        // WO-124: the seat picker in the table moves Anna to seat 20 and back.
+        const pick = (seat, name) => `(() => { const s = document.querySelector('table.seating tr[data-seat="${seat}"] select.seat-picker'); if (!s || s.disabled) return false;
+          const o = [...s.options].find(x => x.textContent.startsWith('${name}')); if (!o) return false; s.value = o.value; s.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`;
+        ok = ok && ((await waitFor(pick('20', 'Anna de Vries'))) || (print({ type: 'console', level: 'check', message: 'seating picker: no picker on seat 20' }), false));
+        ok = ok && ((await waitFor(`${people}.then(l => l.find(p => p.name === 'Anna de Vries').seatId === 20)`)) || (print({ type: 'console', level: 'check', message: 'seating picker: move not applied' }), false));
+        ok = ok && await waitFor("document.querySelector('table.seating tr[data-seat=\"1\"] select.seat-picker')?.value === ''");
+        ok = ok && await waitFor(pick('1', 'Anna de Vries'));
+        ok = ok && await waitFor(`${people}.then(l => l.find(p => p.name === 'Anna de Vries').seatId === 1)`);
         return ok;
       },
       async system() {
@@ -399,8 +407,23 @@ app.whenReady().then(async () => {
         ok = ok && await waitFor("!document.getElementById('nav').textContent.includes('Cameras')");
         await js("location.hash = '#/meeting/seating'");
         ok = ok && await waitFor("document.querySelectorAll('table.seating tbody tr').length === 20");
-        ok = ok && await waitFor("document.querySelector('table.seating tr[data-seat=\"seat-1\"]').textContent.includes('Anna de Vries')");
+        // WO-124: with the full DICENTIS API (linked mock dicentis-bridge) each seat has a participant picker.
+        const picked = seat => `(document.querySelector('table.seating tr[data-seat="${seat}"] select.seat-picker')?.selectedOptions[0]?.textContent ?? '')`;
+        const pick = (seat, name) => `(() => { const s = document.querySelector('table.seating tr[data-seat="${seat}"] select.seat-picker'); if (!s || s.disabled) return false;
+          const o = [...s.options].find(x => ${name === null ? "x.value === ''" : `x.textContent.includes(${JSON.stringify(name)})`}); if (!o) return false;
+          s.value = o.value; s.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`;
+        const step124 = async (label, code) => { if (ok) ok = (await waitFor(code, 6000)) || (print({ type: 'console', level: 'check', message: `seating picker: "${label}" not reached` }), false); };
+        await step124('seat-1 shows Anna', `${picked('seat-1')}.includes('Anna de Vries')`);
+        await step124('help text', "document.querySelector('.stack').textContent.includes('Pick a participant') && !document.body.textContent.includes('WO-081')");
         await shot('seating');
+        await step124('move Anna to seat-19', pick('seat-19', 'Anna de Vries'));
+        await step124('Anna on seat-19', `${picked('seat-19')}.includes('Anna de Vries') && ${picked('seat-1')} === '— nobody —'`);
+        await sleep(200);
+        await shot('seating-moved');
+        await step124('clear seat-19', pick('seat-19', null));
+        await step124('seat-19 empty', `${picked('seat-19')} === '— nobody —'`);
+        await step124('Anna back to seat-1', pick('seat-1', 'Anna de Vries'));
+        await step124('restored', `${picked('seat-1')}.includes('Anna de Vries')`);
         await js("document.querySelector('table.seating tr[data-seat=\"seat-3\"] a').click()");
         ok = ok && await waitFor("location.hash.startsWith('#/room?seat=seat-3')");
         // The plan must render; in the dark pass this runs after the light pass's disconnect/connect (regression WO-046).

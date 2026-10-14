@@ -1,6 +1,7 @@
 # DEC-036: Two Companion modules: `bosch-discussion-system` (direct, network APIs only) and `likeabosch`
 
-- **Status:** accepted (requested by the user 2026-10-12 in next.md; design by Claude, revisable)
+- **Status:** accepted (requested by the user 2026-10-12 in next.md; design by Claude, revisable); points 1 (module id)
+  and 4 (old modules untouched) superseded by DEC-038
 - **WO:** WO-118 (likeabosch), WO-119 (bosch-discussion-system)
 
 ## Context

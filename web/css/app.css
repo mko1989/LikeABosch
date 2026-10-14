@@ -371,6 +371,7 @@ code.id { font-size: 11px; word-break: break-all; }
 .side-hint { margin: 0; }
 /* Meeting → Seating (WO-046) */
 table.seating td .sub { display: block; }
+table.seating select.seat-picker { width: 11.5rem; max-width: 100%; text-overflow: ellipsis; } /* WO-124 */
 .split.wide-main { grid-template-columns: minmax(0, 1fr) minmax(260px, 320px); }
 @media (max-width: 1000px) { .split.wide-main { grid-template-columns: 1fr; } }
 .card-head .row-inline input[type=search] { min-width: 0; }

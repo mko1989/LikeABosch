@@ -139,6 +139,10 @@ Statuses: `draft` · `ready` · `in-progress` · `blocked` · `review` · `done`
 | [WO-119](WO-119-companion-module-bosch-discussion-system.md) | Companion module `bosch-discussion-system`: all Bosch systems, network APIs only (DEC-036) | 5 | review | 111, 075, 032, 066 | 2026-10-12 |
 | [WO-120](WO-120-auto-start-bridges.md) | Launcher starts the bridges by itself when the Bosch DLLs are installed (DEC-037) | 3 | review | 080 | 2026-10-12 |
 | [WO-121](WO-121-release-v0-1-2.md) | Release v0.1.2 (WO-106, 111, 112, 115, 117–120) | 4 | done | 106, 111, 112, 115, 117–120 | 2026-10-12 |
+| [WO-122](WO-122-bosch-dicentis-v2-all-systems.md) | Companion module `bosch-dicentis` v2: all Bosch systems as an upgrade of the published module (DEC-038) | 5 | review | 119 | 2026-10-14 |
+| [WO-123](WO-123-bosch-dicentis-v2-in-companion.md) | `bosch-dicentis` 2.0.0 upgrade checked inside a real Companion | 5 | draft | 122 | 2026-10-14 |
+| [WO-124](WO-124-seating-assign-from-overview.md) | Seating view: assign, move and clear seats in the overview | 3 | review | 046, 084, 106 | 2026-10-14 |
+| [WO-125](WO-125-release-v0-1-3.md) | Release v0.1.3 (WO-124) | 4 | in-progress | 124 | 2026-10-14 |
 
 ## Suggested order / parallelism
 

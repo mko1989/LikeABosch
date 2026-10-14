@@ -1,5 +1,9 @@
 # Bosch Discussion Systems: Bitfocus Companion module
 
+> **Superseded (DEC-038, WO-122):** this code ships as version 2 of the published module `bosch-dicentis`
+> (`../companion-module-bosch-dicentis-main`, with upgrade scripts for 1.x connections). Make changes there; this folder
+> is the reference it was built from and is not published.
+
 A Companion module for DICENTIS (wired), DICENTIS Wireless (WAP), CCS 1000 D and DCN Next Generation (read-only meeting data). It talks to each system over its network API, so it needs no bridge. The end-user help is in `companion/HELP.md`.
 
 ## Layout
