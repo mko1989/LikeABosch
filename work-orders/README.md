@@ -142,7 +142,7 @@ Statuses: `draft` · `ready` · `in-progress` · `blocked` · `review` · `done`
 | [WO-122](WO-122-bosch-dicentis-v2-all-systems.md) | Companion module `bosch-dicentis` v2: all Bosch systems as an upgrade of the published module (DEC-038) | 5 | review | 119 | 2026-10-14 |
 | [WO-123](WO-123-bosch-dicentis-v2-in-companion.md) | `bosch-dicentis` 2.0.0 upgrade checked inside a real Companion | 5 | draft | 122 | 2026-10-14 |
 | [WO-124](WO-124-seating-assign-from-overview.md) | Seating view: assign, move and clear seats in the overview | 3 | review | 046, 084, 106 | 2026-10-14 |
-| [WO-125](WO-125-release-v0-1-3.md) | Release v0.1.3 (WO-124) | 4 | in-progress | 124 | 2026-10-14 |
+| [WO-125](WO-125-release-v0-1-3.md) | Release v0.1.3 (WO-124) | 4 | done | 124 | 2026-10-14 |
 
 ## Suggested order / parallelism
 
