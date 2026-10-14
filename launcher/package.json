@@ -1,6 +1,6 @@
 {
   "name": "likeabosch-launcher",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "Desktop launcher for LikeABosch (DEC-008)",
   "type": "module",

@@ -25,12 +25,19 @@ unsigned, specs stripped of Bosch's text), tag, `gh release create` with the ass
   user's).
 
 ## Acceptance criteria
-- [ ] `npm test` green on the release commit.
-- [ ] `npm run dist` produces the 6 assets `LikeABosch-0.1.3-*`; no Bosch text in the bundles (scan as in WO-107).
+- [x] `npm test` green on the release commit.
+- [x] `npm run dist` produces the 6 assets `LikeABosch-0.1.3-*`; no Bosch text in the bundles (scan as in WO-107).
 - [ ] Tag `v0.1.3` pushed; release published with the assets.
 
 ## Work log
-- 2026-10-14 (Claude Opus): created, in-progress.
+- 2026-10-14 (Claude Opus): created, in-progress. Features committed (`fb6e59b`: WO-124 + WO-122/123 docs); versions
+  bumped with `npm version 0.1.3 --no-git-tag-version` (root + launcher).
+- 2026-10-14 (Claude Opus): `npm test` 373/373. `npm run dist` exit 0: 6 assets `LikeABosch-0.1.3-*` (mac x64 + arm64
+  dmg/zip, win x64 setup/zip). All three unpacked bundles: package.json 0.1.3, `web/js/views/seating.js` with the seat
+  picker and without the "planned, WO-081" text. Bosch-text scan of the three bundles (app + bridges) with 4 sample
+  sentences (Wireless swagger, CCS 1000 D swagger, DCNM api summary, Conference Protocol operation): 0 hits each;
+  positive control in docs/protocol: 4/4/1/3 files. Companion module packages rebuilt (`npm run package`:
+  `likeabosch-1.0.0.tgz`, `bosch-discussion-system-1.0.0.tgz`; module code unchanged since v0.1.2).
 
 ## Decisions
 - Patch bump (0.1.3): the release carries one UI fix (WO-124) and docs.
