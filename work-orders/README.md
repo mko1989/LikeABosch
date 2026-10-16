@@ -143,6 +143,9 @@ Statuses: `draft` · `ready` · `in-progress` · `blocked` · `review` · `done`
 | [WO-123](WO-123-bosch-dicentis-v2-in-companion.md) | `bosch-dicentis` 2.0.0 upgrade checked inside a real Companion | 5 | draft | 122 | 2026-10-14 |
 | [WO-124](WO-124-seating-assign-from-overview.md) | Seating view: assign, move and clear seats in the overview | 3 | review | 046, 084, 106 | 2026-10-14 |
 | [WO-125](WO-125-release-v0-1-3.md) | Release v0.1.3 (WO-124) | 4 | done | 124 | 2026-10-14 |
+| [WO-126](WO-126-launcher-status-names-system.md) | Launcher status pill names the connected system (not always "DICENTIS") | 3 | review | 030, 063, 095 | 2026-10-16 |
+| [WO-127](WO-127-room-widgets-on-plan-and-ptz.md) | Room widgets float on the plan (independent of the inspector) + PTZ widget (DEC-039) | 5 | review | 104, 054 | 2026-10-16 |
+| [WO-128](WO-128-release-v0-1-4.md) | Release v0.1.4 (WO-126, WO-127) | 4 | in-progress | 126, 127 | 2026-10-16 |
 
 ## Suggested order / parallelism
 
@@ -169,6 +172,8 @@ Statuses: `draft` · `ready` · `in-progress` · `blocked` · `review` · `done`
   their constructors, strict mock check on every interface) in review. Then Companion: quick API (WO-117), modules
   (WO-118, WO-119), bridges auto-start (WO-120). **Next:** hardware checks WO-082 (DICENTIS PC with the bridge), WO-113,
   WO-114; Companion modules inside a real Companion.
+- **2026-10-16 (next.md):** launcher pill names the system (WO-126); Room widgets float on the plan + PTZ widget
+  (WO-127, DEC-039).
 - Then WO-009 + WO-010 (client and mock together), then WO-011, WO-012, WO-013.
 - WO-016 (smoke test on real hardware) as soon as WO-011 works, since it surfaces spec errors early.
 - WO-030 (launcher) can start once WO-013 is done; it doesn't need the full UI.

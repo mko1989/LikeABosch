@@ -92,7 +92,7 @@ web/
                           interp.js (interpreter desk semantics), arrange.js (seat shapes, WO-055), labels.js (name layout on the plan, WO-083),
                           participants-io.js (Excel import/export dialog, WO-085), wap.js (wireless config helpers),
                           companion.js (inspector section + button picker, WO-099), camera-aim.js (camera turn + colours, WO-103),
-                          voting-controls.js, dicentis-audio.js / dicentis-languages.js (DEC-029 UI), widgets/ (Room widget dock, DEC-030); views/<name>.js
+                          voting-controls.js, dicentis-audio.js / dicentis-languages.js (DEC-029 UI), widgets/ (Room widgets floating on the plan: layer.js + prefs.js, voting / audio / presentation / ptz; DEC-030, DEC-039); views/<name>.js
                           (views/wap-*.js: DICENTIS Wireless configuration via the WAP web UI API, WO-086…089)
                           (views/ccs-microphones.js: CCS 1000 D microphone sensitivity, WO-111)
                           (views/dcn.js: Settings → DCN, WO-063)

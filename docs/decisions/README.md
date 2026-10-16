@@ -34,7 +34,7 @@ Rules: see "Decisions (ADRs)" in [/CLAUDE.md](../../CLAUDE.md).
 | [DEC-027](DEC-027-companion-triggers.md) | Bitfocus Companion buttons pressed when seats / interpreter desks are activated or deactivated; picker frames Companion's web buttons | accepted (user request + Claude) |
 | [DEC-028](DEC-028-dcn-rs232-via-dcn-sw.md) | DCN with an RS-232 CCU = DCN-SW 3.x through the existing bridge path, version choice sets the port (supersedes DEC-017 §1 when accepted) | proposed |
 | [DEC-029](DEC-029-dicentis-features-over-dcnm.md) | DICENTIS-only features (audio/Dante, languages) as a backend feature layer over the DCNM API (`dicentis.*` topics, `/api/dicentis/*` actions); simulated wired systems include the full API (linked mocks) | accepted (user request + Claude) |
-| [DEC-030](DEC-030-room-widgets.md) | Room widgets (voting, audio, presentation) in the operate-mode side panel | accepted (user request + Claude) |
+| [DEC-030](DEC-030-room-widgets.md) | Room widgets (voting, audio, presentation) in the operate-mode side panel | accepted (user request + Claude); §1 superseded by DEC-039 |
 | [DEC-031](DEC-031-director-fast-overview-and-preposition.md) | Director timing: immediate overview, pre-positioning off-air cameras, travel wait capped by `settleMs`, default delay 250 ms (extends DEC-012 §4) | accepted (user report + Claude) |
 | [DEC-032](DEC-032-ccs1000-on-the-wireless-adapter.md) | CCS 1000 D as a fourth system type (`ccs1000`) on the wireless REST adapter: own spec, topic list, mappers; mic sensitivity | accepted (user request + Claude) |
 | [DEC-033](DEC-033-kramer-and-tvone-switchers.md) | Kramer MV-6 (Protocol 3000) and tvONE CORIO (CORIOmaster API) switcher drivers, no new dependency (extends DEC-012) | accepted (user request + Claude) |
@@ -43,3 +43,4 @@ Rules: see "Decisions (ADRs)" in [/CLAUDE.md](../../CLAUDE.md).
 | [DEC-036](DEC-036-companion-modules.md) | Two Companion modules: `bosch-discussion-system` (direct, network APIs only, actions per system) and `likeabosch` (quick API + bridges via LikeABosch) | accepted (user request + Claude); points 1 and 4 superseded by DEC-038 |
 | [DEC-037](DEC-037-auto-start-bridges.md) | The launcher starts a bridge by itself on Windows when the Bosch DLLs are installed (`autoBridges`) | accepted (user request + Claude) |
 | [DEC-038](DEC-038-bosch-dicentis-module-v2.md) | The all-systems Companion module ships as v2 of the published `bosch-dicentis` (id kept, upgrade script, 1.x keys and variables kept); supersedes DEC-036 points 1 and 4 | accepted (decided by user + Claude) |
+| [DEC-039](DEC-039-room-widgets-float-on-plan.md) | Room widgets float on the plan, added by the operator (per-browser placement); PTZ widget; supersedes DEC-030 §1 | accepted (user request + Claude) |

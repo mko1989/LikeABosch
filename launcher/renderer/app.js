@@ -7,6 +7,8 @@ const field = name => form.elements.namedItem(name);
 const DEFAULT_PORTS = { wired: 31416, wireless: 80, dcn: 9480, 'dcn-smd': 20000, ccs1000: 80 };
 const SERVER_LABELS = { stopped: 'stopped', starting: 'starting…', running: 'running', stopping: 'stopping…', crashed: 'crashed' };
 const BRIDGE_LABELS = { starting: 'starting…', running: 'running', crashed: 'crashed', stopping: 'stopping…', stopped: 'stopped', missing: 'not found' };
+// The connection pill names the system in use (WO-126), not always "DICENTIS".
+const SYSTEM_LABELS = { wired: 'DICENTIS', wireless: 'DICENTIS Wireless', ccs1000: 'CCS 1000 D', dcn: 'DCN NG', 'dcn-smd': 'DCN NG (meeting data)' };
 const DICENTIS_LABELS = {
   disconnected: 'not connected', connecting: 'connecting…', connected: 'logging in…', loggedIn: 'connected', reconnecting: 'reconnecting…',
 };
@@ -85,6 +87,7 @@ function updatePortPlaceholder() {
   $('sim-hint').hidden = !simulating;
   $('real-fields').classList.toggle('dimmed', simulating);
   $('login-fields').classList.toggle('dimmed', simulating);
+  if (serverState !== 'running') renderDicentis(null);
 }
 
 async function save() {
@@ -124,15 +127,18 @@ function renderServer({ state, error }) {
 function renderDicentis(status) {
   const pill = $('dicentis-pill');
   if (!status) {
+    // Server not running: name the system the form would connect to.
+    const sim = field('simulate').value;
     pill.dataset.state = 'disconnected';
-    pill.textContent = 'DICENTIS: not connected';
+    pill.textContent = `${sim ? `Simulated ${SYSTEM_LABELS[sim] ?? sim}` : SYSTEM_LABELS[field('system').value] ?? 'DICENTIS'}: not connected`;
     pill.title = '';
     return;
   }
   const failed = status.state === 'disconnected' && status.lastError;
   pill.dataset.state = failed ? 'error' : status.state;
-  const who = status.simulated ? ` (simulated: ${status.simulated.name})` : status.user && status.host ? ` (${status.user}@${status.host})` : '';
-  pill.textContent = `${status.simulated ? 'Simulation' : 'DICENTIS'}: ${failed ? 'connection failed' : DICENTIS_LABELS[status.state] ?? status.state}${status.state === 'loggedIn' ? who : ''}`;
+  const label = SYSTEM_LABELS[status.system] ?? status.system ?? 'DICENTIS';
+  const who = status.simulated ? ` (${status.simulated.name})` : status.user && status.host ? ` (${status.user}@${status.host})` : '';
+  pill.textContent = `${status.simulated ? `Simulated ${label}` : label}: ${failed ? 'connection failed' : DICENTIS_LABELS[status.state] ?? status.state}${status.state === 'loggedIn' ? who : ''}`;
   pill.title = status.lastError?.message ?? '';
 }
 

@@ -78,6 +78,11 @@ app.whenReady().then(async () => {
     // Generic page helpers for scenarios.
     const clickButton = (label, scope = 'main') => `(() => { const b = [...document.querySelectorAll('${scope} button')].find(x => x.textContent.trim() === '${label}' && !x.disabled); if (b) { b.click(); return true; } return false; })()`;
     const confirmDialog = () => waitFor("(() => { const b = document.querySelector('dialog[open] button[value=ok]'); if (b) { b.click(); return true; } return false; })()");
+    // WO-127: put widgets on the Room plan (on = true) or take them off, through the toolbar's Widgets menu.
+    const setWidgets = (ids, on = true) => `(() => { const btn = document.querySelector('.widget-picker > button'); const menu = document.querySelector('.widget-picker .widget-menu'); if (!btn || !menu) return false;
+      if (menu.hidden) btn.click();
+      for (const id of ${JSON.stringify(ids)}) { const c = document.querySelector('[data-widget-add="' + id + '"]'); if (!c || c.disabled) { btn.click(); return false; } if (c.checked !== ${on}) c.click(); }
+      btn.click(); return true; })()`;
     const text = t => `document.querySelector('main').textContent.includes(${JSON.stringify(t)})`; // textContent: ignores CSS text-transform
     const setField = (sel, value) => `(() => { const e = document.querySelector(${JSON.stringify(sel)}); e.value = ${JSON.stringify(value)}; e.dispatchEvent(new Event('change', { bubbles: true })); e.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`;
     // A hidden window may hand back its last painted frame: force a repaint first.
@@ -129,12 +134,14 @@ app.whenReady().then(async () => {
         // WO-104: the voting widget on the Room drives the same voting.
         const wv = '.widget[data-widget="voting"]';
         await js("location.hash = '#/room'");
+        ok = ok && ((await waitFor(setWidgets(['voting']), 8000)) || (print({ type: 'console', level: 'check', message: 'wireless widgets: cannot add the voting widget' }), false));
         ok = ok && ((await waitFor(`document.querySelector('${wv}') !== null`, 8000)) || (print({ type: 'console', level: 'check', message: 'wireless widgets: no voting widget' }), false));
         ok = ok && await waitFor(clickButton('Open voting', wv));
         ok = ok && await waitFor(`document.querySelector('${wv} .state')?.textContent === 'Opened'`);
         await sleep(300);
         await shot('room-widgets');
         ok = ok && await waitFor(clickButton('Close voting', wv));
+        ok = ok && await waitFor(setWidgets(['voting'], false));
         return ok;
       },
       async room() {
@@ -470,6 +477,7 @@ app.whenReady().then(async () => {
         const step104 = async (label, code, ms) => { if (!ok) return; ok = await waitFor(code, ms); if (!ok) print({ type: 'console', level: 'check', message: `widgets: ${label}` }); };
         const wv = '.widget[data-widget="voting"]';
         await js("location.hash = '#/room'");
+        await step104('add widgets', setWidgets(['voting', 'audio', 'presentation']), 8000);
         await step104('dock', `document.querySelector('${wv}') && document.querySelector('.widget[data-widget="audio"]') && document.querySelector('.widget[data-widget="presentation"]')`, 8000);
         await js(`(() => { const f = document.querySelector('${wv} form'); f.querySelector('input').value = 'Widget motion'; f.requestSubmit(); })()`);
         await step104('ad-hoc', `document.querySelector('${wv}').textContent.includes('Widget motion')`);
@@ -487,6 +495,14 @@ app.whenReady().then(async () => {
         await step104('close', clickButton('Close voting', wv));
         await step104('accept', clickButton('Accept result', wv));
         await step104('accepted', `document.querySelector('${wv}').textContent.includes('Accepted')`);
+        // WO-127: a seat inspector opens in the side panel; the widgets stay where they are on the plan.
+        const vBox = `JSON.stringify(document.querySelector('${wv}').getBoundingClientRect())`;
+        const before = await js(vBox);
+        await js("location.hash = '#/room?seat=seat-2'");
+        await step104('inspector', "document.querySelector('.room-side h2')?.textContent.startsWith('Seat')", 8000);
+        await step104('widget unmoved', `${vBox} === ${JSON.stringify(before)} && document.querySelector('.room-side .widget') === null`);
+        await step104('remove widgets', setWidgets(['voting', 'audio', 'presentation'], false));
+        await step104('removed', "document.querySelector('.widget-layer').children.length === 0");
         return ok;
       },
       async room() {
@@ -775,6 +791,36 @@ app.whenReady().then(async () => {
         await js(setField('[data-camera-panel="cam-2"] .preset-row input', '7'));
         await step54('save as 7', "(() => { const b = [...document.querySelectorAll('[data-camera-panel=\"cam-2\"] .preset-row button')].find(x => x.textContent === 'Save'); if (b && !b.disabled) { b.click(); return true; } return false; })()");
         await step54('current preset 7', `${cam2}.then(c => c.currentPreset.preset === 7)`);
+        // WO-127: PTZ widget on the plan: camera picker, save, jog, overwrite; drag the header; stays without an inspector.
+        const pw = '.widget[data-widget="ptz"]';
+        const cam1 = "fetch('/api/devices/cameras').then(r => r.json()).then(b => b.data.find(c => c.id === 'cam-1'))";
+        await step54('add ptz widget', setWidgets(['ptz']));
+        await step54('ptz widget', `document.querySelector('${pw} .jog-pad') !== null`);
+        await js(setField(`${pw} select.ptz-camera`, 'cam-1'));
+        await step54('ptz picks cam-1', `document.querySelector('${pw} select.ptz-camera')?.value === 'cam-1' && document.querySelector('${pw} .jog-pad') !== null`);
+        await js(clickButton('Close', '[data-camera-panel="cam-2"]'));
+        await step54('widget without inspector', `document.querySelector('[data-camera-panel]') === null && document.querySelector('${pw}') !== null`);
+        await js(setField(`${pw} .preset-row input`, '5'));
+        await step54('widget save 5', clickButton('Save', pw));
+        await step54('cam-1 preset 5', `${cam1}.then(c => c.currentPreset?.preset === 5 && !c.currentPreset.modified)`);
+        await js(`document.querySelector('${pw} [title="Tilt up"]').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: 41 }))`);
+        await step54('widget moving', `${cam1}.then(c => c.status.moving === true)`);
+        await js("window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 41 }))");
+        await step54('widget stopped', `${cam1}.then(c => c.status.moving === false && c.currentPreset.modified === true)`);
+        await step54('widget adjusted', `document.querySelector('${pw} .current-preset')?.textContent.includes('adjusted')`);
+        await step54('widget overwrite', clickButton('Overwrite preset 5', pw));
+        await step54('widget overwritten', `${cam1}.then(c => c.currentPreset.preset === 5 && c.currentPreset.modified === false)`);
+        const pBox = `document.querySelector('${pw}').getBoundingClientRect()`;
+        const x0 = await js(`${pBox}.left`);
+        await js(`(() => { const hd = document.querySelector('${pw} .widget-head h2'); const r = hd.getBoundingClientRect(); const x = r.x + 5, y = r.y + 5;
+          hd.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: x, clientY: y, pointerId: 42, button: 0 }));
+          hd.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: x - 120, clientY: y + 40, pointerId: 42 }));
+          hd.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: x - 120, clientY: y + 40, pointerId: 42 })); })()`);
+        await step54('widget dragged', `Math.abs(${pBox}.left - (${x0} - 120)) < 2 && JSON.parse(localStorage.getItem('likeabosch.room.widgets.v2')).settings.ptz.cameraId === 'cam-1'`);
+        await sleep(300);
+        await shot('room-ptz-widget');
+        await step54('remove ptz widget', clickButton('✕', pw));
+        await step54('ptz widget gone', `document.querySelector('${pw}') === null`);
         const cogAtCorner = (key, shapeSel) => `(() => { const c = ${cog(key)}?.getBoundingClientRect(); const s = document.querySelector(${JSON.stringify(shapeSel)})?.getBoundingClientRect(); if (!c || !s) return false; const cx = (c.left + c.right) / 2, cy = (c.top + c.bottom) / 2; return Math.abs(cx - s.right) < 8 && Math.abs(cy - s.bottom) < 8; })()`;
         const cogDrag = (key, dx, dy, id) => `(() => {
           const b = ${cog(key)}; if (!b) return false; const r = b.getBoundingClientRect(); const x = r.x + r.width / 2, y = r.y + r.height / 2;

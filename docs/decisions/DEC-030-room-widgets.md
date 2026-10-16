@@ -1,6 +1,6 @@
 # DEC-030: Room widgets: voting, audio and presentation on the operator's main screen
 
-- **Status:** accepted (requested by the user 2026-10-08: "voting is hidden in settings. there should be a widget kind of
+- **Status:** accepted; §1 superseded by DEC-039 (requested by the user 2026-10-08: "voting is hidden in settings. there should be a widget kind of
   thingy for voting. also widgets for audio and presentation"; design by Claude)
 - **WO:** WO-104
 - **Builds on:** DEC-011 / DEC-014 (Room = main workspace, full views under Settings), DEC-009 (UI rules), DEC-010

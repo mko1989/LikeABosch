@@ -10,7 +10,7 @@ import { layoutNames } from '../labels.js';
 import { proposeMatch, unmatchedSeats } from '../seat-match.js';
 import { companionSection } from '../companion.js';
 import { cameraColors, relativeAim, turnTo, aimedSeat } from '../camera-aim.js';
-import { createWidgetDock } from '../widgets/dock.js';
+import { createWidgetLayer } from '../widgets/layer.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
 /** SVG element builder (h() creates HTML elements). */
@@ -845,6 +845,7 @@ export default {
           h('button', { type: 'button', class: mode === 'edit' ? 'on' : null, 'aria-pressed': String(mode === 'edit'), onclick: () => { mode = 'edit'; renderAll(); } }, 'Edit layout')),
         meetingBox,
         h('span', { class: 'spacer' }),
+        widgetLayer.picker,
         mode === 'edit' ? h('label', { class: 'button-like secondary small' }, 'Floor plan…', fileInput) : null,
         mode === 'edit' ? h('button', { type: 'button', class: 'secondary small', title: 'Map the seats of this plan to the seats of the connected system (WO-096)', onclick: openMatchDialog }, 'Match seats…') : null,
         h('span', { class: 'label-size', role: 'group', 'aria-label': 'Label size' },
@@ -1655,13 +1656,13 @@ export default {
     function renderSide(force = false) {
       if (ptzHolding()) return afterPtzHold(() => renderSide(force));
       const r = room();
-      // Widgets (WO-104, DEC-030) on top; an open inspector goes above them so it is not pushed out of view.
+      // Widgets float on the plan (WO-127, DEC-039), so the side panel is the inspector, director and speakers.
       const inspector = slot('operate:inspector', inspectorKey(), () => (selected?.kind === 'seat' ? seatPanel(selected.id) : selected?.kind === 'desk' ? deskPanel(selected.id)
         : selected?.kind === 'camera' ? cameraPanel(selected.id)
           : h('p', { class: 'muted small-text side-hint' }, '⚙ next to an item opens its inspector; drag the ⚙ to move the item.')), force);
       const parts = mode === 'operate'
         ? [
-          ...(selected ? [inspector, widgetDock.el] : [widgetDock.el, inspector]),
+          inspector,
           slot('operate:director', JSON.stringify([director(), r?.director, r?.overview, cameras().map(c => [c.id, c.name, c.automation]), switcher()?.automation, Boolean(switcher()), (store.topic('domain.seats') ?? []).map(x => [x.id, x.name])]), directorPanel, force),
           slot('operate:speakers', JSON.stringify([discussion(), r?.shots]), speakersPanel, force),
         ]
@@ -1749,7 +1750,8 @@ export default {
 
     function renderAll() { renderToolbar(); renderMeeting(); renderCanvas(); renderSide(true); renderMatchBanner(); }
 
-    const widgetDock = createWidgetDock(store, api); // WO-104
+    const widgetLayer = createWidgetLayer(store, api, stage); // WO-127: widgets on the plan
+    stage.append(widgetLayer.el);
     el.classList.add('room-view');
     el.append(h('h1', { id: 'view-title', class: 'visually-hidden' }, 'Room'), toolbar, matchBanner, h('div', { class: 'room-body' }, stage, side));
     renderAll();
@@ -1782,7 +1784,7 @@ export default {
     const resizeObserver = new ResizeObserver(() => (autoFit ? fit() : applyView()));
     resizeObserver.observe(stage);
     return () => {
-      off(); offProject(); offCompanion(); widgetDock.destroy(); resizeObserver.disconnect(); window.removeEventListener('hashchange', onHash);
+      off(); offProject(); offCompanion(); widgetLayer.destroy(); resizeObserver.disconnect(); window.removeEventListener('hashchange', onHash);
       window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); window.removeEventListener('blur', onBlur);
     };
   },

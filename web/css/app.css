@@ -604,18 +604,27 @@ dialog.companion-dialog h2 { margin-top: 0; }
 .dicentis-languages .checks { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; }
 .dicentis-languages h3 { margin: 12px 0 6px; }
 
-/* Room widgets (WO-104, DEC-030) */
-.widget-dock { display: grid; gap: 8px; min-width: 0; }
-.widget-dock > *, .widget-list > *, .widget-body > * { min-width: 0; }
-.widget-list { display: grid; gap: 8px; }
+/* Room widgets (WO-104, DEC-030), floating on the plan (WO-127, DEC-039) */
+.widget-layer { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+.widget.floating { position: absolute; pointer-events: auto; display: flex; flex-direction: column; background: var(--surface); padding: 10px 12px;
+  box-shadow: 0 2px 6px rgb(0 0 0 / .12), 0 8px 24px rgb(0 0 0 / .10); }
+.widget.floating.moving { opacity: .92; box-shadow: 0 6px 28px rgb(0 0 0 / .22); }
+.widget.floating .widget-body { overflow: auto; min-height: 0; }
+.widget-head { cursor: grab; touch-action: none; user-select: none; }
+.widget.moving .widget-head { cursor: grabbing; }
+.widget-tools .widget-toggle, .widget-tools .widget-close { font-size: 15px; line-height: 1; padding: 2px 4px; min-height: 0; }
+.widget-picker { position: relative; display: inline-flex; }
+.widget-picker .widget-menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; min-width: 200px; box-shadow: var(--shadow); }
+.widget-body > * { min-width: 0; }
 .widget { min-width: 0; overflow: hidden; }
 .widget .gain-list.compact .gain-row { grid-template-columns: minmax(0, 6.5em) minmax(50px, 1fr) 3.8em auto; gap: 6px; }
 .widget .gain-list.compact .gain-name { font-size: 12px; overflow-wrap: anywhere; }
 .widget .bars.compact .bar-row { grid-template-columns: minmax(0, 5em) minmax(40px, 1fr) auto; }
 .widget .vu-row { grid-template-columns: 6.5em minmax(40px, 1fr) 3.2em; }
-.widget-dock-head { display: flex; justify-content: flex-end; align-items: center; }
 .widget-menu[hidden] { display: none; }
 .widget-menu { display: grid; gap: 4px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.widget .ptz-camera { flex: 1; min-width: 0; }
+.widget .ptz { margin: 2px 0; }
 .widget .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .widget .card-head h2 { margin: 0; }
 .widget-tools { display: flex; gap: 6px; align-items: center; font-size: 12px; }
