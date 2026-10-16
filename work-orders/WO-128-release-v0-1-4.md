@@ -24,12 +24,20 @@ zip, unsigned, specs stripped of Bosch's text), tag, `gh release create` as draf
 - Out: code signing (WO-029).
 
 ## Acceptance criteria
-- [ ] `npm test` green on the release commit.
-- [ ] `npm run dist` produces the 6 assets `LikeABosch-0.1.4-*`; no Bosch text in the bundles (scan as in WO-107).
+- [x] `npm test` green on the release commit.
+- [x] `npm run dist` produces the 6 assets `LikeABosch-0.1.4-*`; no Bosch text in the bundles (scan as in WO-107).
 - [ ] Tag `v0.1.4` pushed; release published with the assets.
 
 ## Work log
-- 2026-10-16 (Claude Opus): created, in-progress.
+- 2026-10-16 (Claude Opus): created, in-progress. Features committed locally (`243bc06`, not pushed); versions bumped to
+  0.1.4 (root + launcher, uncommitted). Paused by the user before the build: widgets did not appear (fixed in WO-127).
+- 2026-10-16 (Claude Opus): resumed after the WO-127 fixes (`e3353e4`: layer survives "Loading room…", camera buttons
+  in the PTZ widget). `npm test` 376/376. `npm run dist` exit 0: 6 assets `LikeABosch-0.1.4-*` (mac x64 + arm64 dmg/zip,
+  win x64 setup/zip). All three unpacked bundles: app package.json 0.1.4, `web/js/widgets/layer.js` present, room.js
+  with the "Loading room…" fix, ptz.js with the camera buttons. Bosch-text scan of the three bundles with 4 sample
+  sentences (Wireless swagger, CCS 1000 D swagger, DCNM api summary, Conference Protocol operation summary): 0 hits
+  each; positive control in docs/protocol: 4/4/1/2 files. Companion modules unchanged since v0.1.3 (`git diff v0.1.3 --
+  companion-module-dev` empty): the same two packages are attached.
 
 ## Decisions
 - Patch bump (0.1.4): one launcher fix (WO-126) and a Room UI change (WO-127).

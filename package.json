@@ -1,6 +1,6 @@
 {
   "name": "likeabosch",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "Node.js backend + web UI client for Bosch DICENTIS conference systems",
   "type": "module",
