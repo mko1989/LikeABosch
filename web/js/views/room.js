@@ -672,8 +672,9 @@ export default {
     function renderCanvas() {
       if (drag && drag.kind !== 'pan') return; // don't fight an ongoing drag/resize
       const r = room();
-      if (!r) return replace(stage, h('p', { class: 'muted pad' }, 'Loading room…'));
-      if (!stage.contains(svg)) { replace(stage, svg, overlay); applyView(); }
+      // The widget layer (WO-127) stays on the stage through "Loading room…" (a page opened straight on #/room).
+      if (!r) return replace(stage, h('p', { class: 'muted pad' }, 'Loading room…'), widgetLayer.el);
+      if (!stage.contains(svg)) { replace(stage, svg, overlay, widgetLayer.el); applyView(); }
       if (r.background) bgImage.setAttribute('href', `/api/room/background?v=${encodeURIComponent(r.background.updatedAt)}`);
       const defs = s('defs', null, s('pattern', { id: 'grid', width: 50, height: 50, patternUnits: 'userSpaceOnUse' }, s('path', { d: 'M 50 0 L 0 0 0 50', class: 'grid-line' })));
       camColorMap = cameraColors(cameras());

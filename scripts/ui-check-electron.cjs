@@ -30,7 +30,8 @@ app.whenReady().then(async () => {
   try {
     await win.loadURL(baseUrl);
     // Record error toasts too: an unexpected one fails the run (e.g. a 500 from the backend).
-    await js(`window.__errorToasts = []; new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.classList?.contains('toast') && n.classList.contains('error')) window.__errorToasts.push(n.textContent); }))).observe(document.getElementById('toasts'), { childList: true })`);
+    const watchToasts = `window.__errorToasts = []; new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.classList?.contains('toast') && n.classList.contains('error')) window.__errorToasts.push(n.textContent); }))).observe(document.getElementById('toasts'), { childList: true })`;
+    await js(watchToasts);
     const EXPECTED_TOASTS = /access denied/i; // the participants scenario provokes this one on purpose
     await waitFor("document.getElementById('connection-pill').dataset.state === 'loggedIn'");
     // Read-only snapshot mode (scripts/ui-snapshot.mjs, e.g. against a REAL system): visit + screenshot, never click.
@@ -479,6 +480,12 @@ app.whenReady().then(async () => {
         await js("location.hash = '#/room'");
         await step104('add widgets', setWidgets(['voting', 'audio', 'presentation']), 8000);
         await step104('dock', `document.querySelector('${wv}') && document.querySelector('.widget[data-widget="audio"]') && document.querySelector('.widget[data-widget="presentation"]')`, 8000);
+        // WO-127: a page opened straight on #/room (room data not loaded yet) still shows the placed widgets.
+        await js('location.reload()');
+        await sleep(500);
+        await waitFor("document.getElementById('toasts') !== null", 10000);
+        await js(watchToasts); // the reload dropped the error-toast watcher
+        await step104('after reload', `document.querySelector('.room-canvas') !== null && document.querySelectorAll('.widget-layer .widget').length === 3 && document.querySelector('.room-stage > .widget-layer') !== null`, 10000);
         await js(`(() => { const f = document.querySelector('${wv} form'); f.querySelector('input').value = 'Widget motion'; f.requestSubmit(); })()`);
         await step104('ad-hoc', `document.querySelector('${wv}').textContent.includes('Widget motion')`);
         await step104('open', clickButton('Open voting', wv));
@@ -796,8 +803,9 @@ app.whenReady().then(async () => {
         const cam1 = "fetch('/api/devices/cameras').then(r => r.json()).then(b => b.data.find(c => c.id === 'cam-1'))";
         await step54('add ptz widget', setWidgets(['ptz']));
         await step54('ptz widget', `document.querySelector('${pw} .jog-pad') !== null`);
-        await js(setField(`${pw} select.ptz-camera`, 'cam-1'));
-        await step54('ptz picks cam-1', `document.querySelector('${pw} select.ptz-camera')?.value === 'cam-1' && document.querySelector('${pw} .jog-pad') !== null`);
+        await step54('ptz camera buttons', `document.querySelectorAll('${pw} .ptz-cam').length === 2`);
+        await step54('ptz click cam-1', `(() => { const b = document.querySelector('${pw} .ptz-cam[data-camera="cam-1"]'); if (!b) return false; b.click(); return true; })()`);
+        await step54('ptz picks cam-1', `document.querySelector('${pw} .ptz-cam.on')?.dataset.camera === 'cam-1' && document.querySelector('${pw} .ptz-cam[data-camera="cam-1"]').getAttribute('aria-pressed') === 'true' && document.querySelector('${pw} .jog-pad') !== null`);
         await js(clickButton('Close', '[data-camera-panel="cam-2"]'));
         await step54('widget without inspector', `document.querySelector('[data-camera-panel]') === null && document.querySelector('${pw}') !== null`);
         await js(setField(`${pw} .preset-row input`, '5'));

@@ -623,7 +623,11 @@ dialog.companion-dialog h2 { margin-top: 0; }
 .widget .vu-row { grid-template-columns: 6.5em minmax(40px, 1fr) 3.2em; }
 .widget-menu[hidden] { display: none; }
 .widget-menu { display: grid; gap: 4px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
-.widget .ptz-camera { flex: 1; min-width: 0; }
+.widget .ptz-cameras { display: flex; flex-wrap: wrap; gap: 4px; }
+.widget .ptz-cam { font-size: 12px; padding: 3px 10px; min-height: 28px; border-radius: 6px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.widget .ptz-cam.on { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.widget .ptz-cam.offline { border-style: dashed; opacity: .7; }
+.widget .ptz-cam.live { box-shadow: inset 0 -3px 0 #e0241b; }
 .widget .ptz { margin: 2px 0; }
 .widget .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .widget .card-head h2 { margin: 0; }

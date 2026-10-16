@@ -54,6 +54,18 @@ DEC-030 (widgets in the side panel; §1 superseded by DEC-039), DEC-039, WO-104 
   other) and a tiny collapse glyph → new cards go side by side from the top right (cascade once the row is full),
   bigger header icons; second look OK (wired light PTZ widget, wired dark three widgets, wireless light voting).
   Full `node scripts/ui-check.mjs` (all 5 systems, light + dark): UI CHECK OK. `npm test` 376/376.
+- 2026-10-16 (Claude Opus): user report: "the widgets are not appearing". Reproduced with real mouse clicks against a
+  simulated wired backend, page opened straight on `#/room`: the menu saved the widgets, but `.widget-layer` was not in
+  the page. Cause: `renderCanvas` shows "Loading room…" with `replace(stage, …)` while the `room` topic is not loaded,
+  then puts back only `svg` + `overlay`, which drops the layer. ui-check missed it because it reaches the Room from
+  another view (room already loaded). Fix: both `replace(stage, …)` calls keep `widgetLayer.el`. ui-check: wired
+  `voting` reloads the page after adding the widgets and expects all 3 back on `.room-stage > .widget-layer`
+  (re-installs the error-toast watcher after the reload). Without the fix that step fails (light + dark), with it
+  `--system both voting room` passes; repro shows the Voting + PTZ cards. `npm test` 376/376.
+- 2026-10-16 (Claude Opus): user: "in the cam widget instead of a drop down for camera picker put buttons there". PTZ
+  widget: one button per camera (wrapping row, `aria-pressed`; selected = filled, offline = dashed, on air = red bottom
+  edge), click = `ctx.set('cameraId')`. ui-check `room` clicks the cam-1 button (2 buttons, pressed state). `--system
+  wired room`: UI CHECK OK; screenshot looked at (Overview cam selected and on air, Cam A).
 
 ## Decisions
 - DEC-039.

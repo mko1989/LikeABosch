@@ -20,12 +20,18 @@ export default {
     const camUrl = `/devices/cameras/${encodeURIComponent(cam.id)}`;
     const recallPreset = p => api.post(`${camUrl}/recall`, { preset: p });
 
-    const picker = h('select', { 'aria-label': 'Camera', class: 'ptz-camera', onchange: e => ctx.set('cameraId', e.target.value) },
-      list.map(c => h('option', { value: c.id, selected: c.id === cam.id }, `${c.name}${c.status?.connected ? '' : ' (offline)'}`)));
-
     const sw = store.topic('devices.switcher')?.switcher?.status;
-    const input = cam.switcherInput;
-    const tally = input === null || input === undefined || !sw?.connected ? null : sw.program === input ? 'program' : sw.preview === input ? 'preview' : null;
+    const tallyOf = c => (c.switcherInput === null || c.switcherInput === undefined || !sw?.connected ? null
+      : sw.program === c.switcherInput ? 'program' : sw.preview === c.switcherInput ? 'preview' : null);
+    const tally = tallyOf(cam);
+
+    // One button per camera (user, 2026-10-16: buttons instead of a drop-down); red edge = on air, dashed = offline.
+    const picker = h('div', { class: 'ptz-cameras', role: 'group', 'aria-label': 'Camera' }, list.map(c => h('button', {
+      type: 'button', 'data-camera': c.id, 'aria-pressed': String(c.id === cam.id),
+      class: ['ptz-cam', c.id === cam.id && 'on', !c.status?.connected && 'offline', tallyOf(c) === 'program' && 'live'],
+      title: `${c.name}${c.status?.connected ? '' : ' (offline)'}${tallyOf(c) === 'program' ? ' · on air' : ''}`,
+      onclick: () => ctx.set('cameraId', c.id),
+    }, c.name)));
 
     const presetInput = h('input', { type: 'text', inputmode: 'numeric', placeholder: 'Preset', 'aria-label': `Preset for ${cam.name}`, class: 'preset-input' });
     const typed = () => { const v = presetInput.value.trim(); return /^\d+$/.test(v) ? Number(v) : v; };
@@ -46,7 +52,7 @@ export default {
 
     return [
       h('div', { class: 'widget-form' },
-        h('div', { class: 'row-inline' }, picker),
+        picker,
         h('div', { class: 'seat-badges' },
           h('span', { class: ['pill', st.connected ? 'loggedIn' : 'disconnected'] }, st.connected ? 'Connected' : 'Offline'),
           tally === 'program' ? h('span', { class: 'tag live-tag' }, 'Program (on air)') : tally === 'preview' ? h('span', { class: 'tag ok-tag' }, 'Preview') : null)),
