@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | in-progress |
+| **Status** | done |
 | **Phase** | 4 Hardening |
 | **Depends on** | WO-126, WO-127 |
 | **Assignee** | Claude Opus (main) |
@@ -26,7 +26,7 @@ zip, unsigned, specs stripped of Bosch's text), tag, `gh release create` as draf
 ## Acceptance criteria
 - [x] `npm test` green on the release commit.
 - [x] `npm run dist` produces the 6 assets `LikeABosch-0.1.4-*`; no Bosch text in the bundles (scan as in WO-107).
-- [ ] Tag `v0.1.4` pushed; release published with the assets.
+- [x] Tag `v0.1.4` pushed; release published with the assets.
 
 ## Work log
 - 2026-10-16 (Claude Opus): created, in-progress. Features committed locally (`243bc06`, not pushed); versions bumped to
@@ -38,8 +38,15 @@ zip, unsigned, specs stripped of Bosch's text), tag, `gh release create` as draf
   sentences (Wireless swagger, CCS 1000 D swagger, DCNM api summary, Conference Protocol operation summary): 0 hits
   each; positive control in docs/protocol: 4/4/1/2 files. Companion modules unchanged since v0.1.3 (`git diff v0.1.3 --
   companion-module-dev` empty): the same two packages are attached.
+- 2026-10-16 (Claude Opus): committed `c0cfe25`, annotated tag `v0.1.4`, pushed main + tag. `gh release create --draft`
+  without assets, then `gh release upload --clobber` per file: all 8 ok first try, sizes match the local files;
+  `gh release edit --draft=false --latest`. Release https://github.com/mko1989/LikeABosch/releases/tag/v0.1.4 (Latest,
+  not a draft, not a pre-release). Status → done.
 
 ## Decisions
 - Patch bump (0.1.4): one launcher fix (WO-126) and a Room UI change (WO-127).
 
 ## Handoff
+Delivered: release v0.1.4 (6 installers + the 2 Companion module packages unchanged since 0.1.2). Not signed (WO-029).
+WO-126 and WO-127 stay in review (the PTZ widget is checked against simulated cameras only; the launcher pill in the
+renderer with a stubbed preload).

@@ -145,7 +145,7 @@ Statuses: `draft` · `ready` · `in-progress` · `blocked` · `review` · `done`
 | [WO-125](WO-125-release-v0-1-3.md) | Release v0.1.3 (WO-124) | 4 | done | 124 | 2026-10-14 |
 | [WO-126](WO-126-launcher-status-names-system.md) | Launcher status pill names the connected system (not always "DICENTIS") | 3 | review | 030, 063, 095 | 2026-10-16 |
 | [WO-127](WO-127-room-widgets-on-plan-and-ptz.md) | Room widgets float on the plan (independent of the inspector) + PTZ widget (DEC-039) | 5 | review | 104, 054 | 2026-10-16 |
-| [WO-128](WO-128-release-v0-1-4.md) | Release v0.1.4 (WO-126, WO-127) | 4 | in-progress | 126, 127 | 2026-10-16 |
+| [WO-128](WO-128-release-v0-1-4.md) | Release v0.1.4 (WO-126, WO-127) | 4 | done | 126, 127 | 2026-10-16 |
 
 ## Suggested order / parallelism
 
