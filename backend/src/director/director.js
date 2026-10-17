@@ -40,11 +40,18 @@ export class Director extends EventEmitter {
     });
     // Know what's on air as soon as the switcher (re)connects, not only after our first cut.
     devices.on('changed', () => {
-      const program = devices.publicSwitcher()?.status?.program;
-      const cam = program === null || program === undefined ? null : this.#cameraForInput(program);
+      const cam = this.#programCamera();
       if (cam !== this.onAirCamera) { this.onAirCamera = cam; this.#publish(); }
     });
+    devices.on('automation', () => this.reevaluate()); // a camera / the switcher switched into or out of the automation
+    this.onAirCamera = this.#programCamera();
     this.#publish();
+  }
+
+  /** The camera on the switcher's program input, as far as the switcher reports it (null = unknown / no camera). */
+  #programCamera() {
+    const program = this.devices.publicSwitcher()?.status?.program;
+    return program === null || program === undefined ? null : this.#cameraForInput(program);
   }
 
   get settings() { return this.room.get().director; }
@@ -87,6 +94,12 @@ export class Director extends EventEmitter {
     this.timer = setTimeout(() => { if (this.settings.enabled) this.#go(shot, 'automatic'); }, wait);
     this.timer.unref?.();
   }
+
+  /**
+   * Act on who is speaking now (WO-129): called when the automation is switched on or its settings change, so it does
+   * not wait for the next microphone change.
+   */
+  reevaluate() { this.#onDiscussion(); }
 
   /** Move the camera of a pending shot during the delay, if that cannot be seen: not on program, not the current shot. */
   #preposition({ cameraId, preset }) {
@@ -164,13 +177,16 @@ export class Director extends EventEmitter {
     }
   }
 
-  /** Another project was opened (DEC-016): forget what we know about cameras and shots. */
+  /**
+   * Another project was opened (DEC-016): forget what we know about cameras and shots. What is on air is read back from
+   * the switcher: it may have connected before 'opened' fired, and its next status change can be far away (WO-129).
+   */
   reset() {
     clearTimeout(this.timer);
     this.cameraPreset = {};
     this.arrival = {};
     this.target = null;
-    this.onAirCamera = null;
+    this.onAirCamera = this.#programCamera();
     this.#publish();
   }
 

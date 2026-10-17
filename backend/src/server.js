@@ -76,6 +76,7 @@ export async function start(config = loadConfig()) {
   const stopSeatNames = recordSeatNames({ cache, room, projects, log: log.child('projects') }); // WO-096
   const director = new Director({ cache, devices, room, log: log.child('director') });
   projects.on('opened', () => director.reset());
+  room.onDirectorChanged = () => director.reevaluate(); // e.g. Auto switched on while someone is speaking (WO-129)
   app.locals.services.director = director;
   const companion = new CompanionService({ cache, devices, room, log: log.child('companion') }); // WO-099
   app.locals.services.companion = companion;

@@ -250,3 +250,67 @@ describe('director timing (DEC-031)', () => {
     }
   });
 });
+
+describe('the automation acts without a nudge (WO-129)', () => {
+  let mock;
+  let backend;
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const api = async (method, path, body) => {
+    const res = await fetch(`${backend.url}/api${path}`, { method, headers: body === undefined ? {} : { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+    return res.json();
+  };
+  const waitFor = async (fn, ms = 5000) => {
+    const end = Date.now() + ms;
+    while (Date.now() < end) { if (await fn()) return; await sleep(10); }
+    throw new Error('timeout');
+  };
+  const cam = id => backend.services.devices.cameras.get(id).driver;
+  const sw = () => backend.services.devices.switcher.driver;
+
+  before(async () => {
+    mock = await createMockWiredServer();
+    backend = await startConnectedBackend(mock);
+    // The mock switcher starts with input 1 on program: the speaker camera is on air before anyone speaks.
+    await api('POST', '/devices/cameras', { name: 'Speakers', driver: 'mock', switcherInput: 1 });   // cam-1
+    await api('POST', '/devices/cameras', { name: 'Overview', driver: 'mock', switcherInput: 2 });   // cam-2
+    await api('PUT', '/devices/switcher', { driver: 'mock' });
+    await api('PUT', '/room/overview', { cameraId: 'cam-2', preset: 0 });
+    await api('PUT', '/room/shots/seat-3', { cameraId: 'cam-1', preset: 3 });
+    await api('PUT', '/room/shots/seat-4', { cameraId: 'cam-1', preset: 4 });
+    await api('PUT', '/room/director', { enabled: true, strategy: 'safe', delayMs: 0, minShotMs: 0, settleMs: 10 });
+  });
+  after(async () => { await backend.close(); await mock.close(); });
+
+  test('after a project opens, the director knows what is on air and the first speaker gets a safe shot', async () => {
+    const opened = await api('POST', '/projects', { name: 'Copy', copyCurrent: true }); // opens it: devices reconnect
+    assert.equal(opened.ok, true);
+    await waitFor(() => sw()?.connected);
+    assert.equal((await api('GET', '/director')).data.onAirCamera, 'cam-1', 'read back from the switcher, not forgotten');
+    await api('POST', '/domain/discussion/speakers', { seatId: 'seat-3' });
+    await waitFor(() => cam('cam-1').preset === 3 && sw().program === 1 && sw().cuts.length >= 2);
+    assert.deepEqual(sw().cuts, [2, 1], 'cut away to the overview, move, cut back (the on-air camera was not moved live)');
+    await api('DELETE', '/domain/discussion/speakers/seat-3');
+    await waitFor(() => sw().program === 2);
+  });
+
+  test('switching Auto on while someone speaks puts that seat on air at once', async () => {
+    await api('PUT', '/room/director', { enabled: false });
+    await api('POST', '/domain/discussion/speakers', { seatId: 'seat-4' });
+    await sleep(150);
+    assert.equal(sw().program, 2, 'manual: nothing happens');
+    await api('PUT', '/room/director', { enabled: true });
+    await waitFor(() => cam('cam-1').preset === 4 && sw().program === 1);
+    await api('DELETE', '/domain/discussion/speakers/seat-4');
+    await waitFor(() => sw().program === 2);
+  });
+
+  test('switching a camera back into the automation while its seat speaks puts the seat on air', async () => {
+    await api('PUT', '/devices/cameras/cam-1', { automation: false });
+    await api('POST', '/domain/discussion/speakers', { seatId: 'seat-3' });
+    await sleep(150);
+    assert.equal(sw().program, 2, 'camera out of the automation: overview stays');
+    await api('PUT', '/devices/cameras/cam-1', { automation: true });
+    await waitFor(() => cam('cam-1').preset === 3 && sw().program === 1);
+    await api('DELETE', '/domain/discussion/speakers/seat-3');
+  });
+});

@@ -1,5 +1,7 @@
 // Settings → Cameras & switcher (WO-040, DEC-012): camera list/edit with model templates, PTZ jog, presets,
 // video switcher settings (ATEM, Kramer MV-6, tvONE CORIO: DEC-012, DEC-033) and camera → switcher input mapping.
+// WO-129: also the camera automation's behaviour (DEC-012 §4), the overview shot and the recent director actions; the
+// seat → preset table stays in Settings → Camera automation.
 import { ptzPad, ptzHolding, afterPtzHold } from '../ptz.js';
 import { h, replace, toast, toastError, actionButton } from '../dom.js';
 
@@ -294,6 +296,75 @@ export default {
         type ? h('p', { class: 'muted small-text' }, SWITCHER_NOTES[type]) : null);
     }
 
+    // ---------------------------------------------------------------- camera automation (WO-040, moved here by WO-129)
+    const automationBox = h('div');
+    const overviewBox = h('div');
+    const logBox = h('div');
+    const presetOf = input => { const v = input.value.trim(); return /^\d+$/.test(v) ? Number(v) : v; };
+
+    function renderAutomation() {
+      const d = store.topic('room')?.director;
+      if (!d) return replace(automationBox);
+      const num = (name, label, value, max, hint) => h('label', { class: 'field' }, h('span', null, label),
+        h('input', { name, type: 'number', min: 0, max, step: 50, value: String(value) }), hint ? h('small', { class: 'muted' }, hint) : null);
+      const form = h('form', { class: 'settings automation-settings', novalidate: true },
+        h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'enabled', checked: d.enabled }), ' Automatic camera control (follow the active microphone)'),
+        h('fieldset', { class: 'radio-group' }, h('legend', null, 'Moving a camera that is on air'),
+          h('label', { class: 'check' }, h('input', { type: 'radio', name: 'strategy', value: 'safe', checked: d.strategy === 'safe' }),
+            h('span', null, h('strong', null, 'Safe: '), 'never move the camera that is on air. Cut to the overview camera first, move, then cut back.')),
+          h('label', { class: 'check' }, h('input', { type: 'radio', name: 'strategy', value: 'live', checked: d.strategy === 'live' }),
+            h('span', null, h('strong', null, 'Live: '), 'recall the preset and cut immediately (camera movement may be visible).'))),
+        h('div', { class: 'row three' },
+          num('delayMs', 'Delay after mic on (ms)', d.delayMs, 10000, 'Ignore very short mic activations. A camera that is not on air already moves meanwhile; the overview after the last mic is immediate.'),
+          num('minShotMs', 'Minimum shot (ms)', d.minShotMs, 60000, 'Hold each speaker shot at least this long.'),
+          num('settleMs', 'Camera travel time (ms)', d.settleMs ?? 2500, 15000, 'Longest wait before cutting to a camera that was just moved (cameras that report arrival are cut to sooner).')),
+        h('p', { class: 'muted small-text' }, 'Which preset each seat gets: ', h('a', { href: '#/settings/automation' }, 'Settings → Camera automation'), '.'),
+        h('div', { class: 'actions' }, h('button', { type: 'submit', class: 'primary' }, 'Save')));
+      form.addEventListener('submit', async e => {
+        e.preventDefault();
+        const f = n => form.elements.namedItem(n);
+        try {
+          await api.put('/room/director', {
+            enabled: f('enabled').checked, strategy: form.querySelector('input[name=strategy]:checked').value,
+            delayMs: Number(f('delayMs').value), minShotMs: Number(f('minShotMs').value), settleMs: Number(f('settleMs').value),
+          });
+          toast('Automation settings saved', 'success');
+        } catch (err) { toastError(err); }
+      });
+      replace(automationBox, h('h2', null, 'Camera automation'), form);
+    }
+
+    function renderOverview() {
+      const o = store.topic('room')?.overview;
+      const cam = h('select', { 'aria-label': 'Overview camera' },
+        h('option', { value: '' }, '— none —'), cameras().map(c => h('option', { value: c.id, selected: o?.cameraId === c.id }, c.name)));
+      const preset = h('input', { type: 'text', value: o?.preset ?? '', placeholder: 'Preset', 'aria-label': 'Overview preset', class: 'preset-input' });
+      replace(overviewBox,
+        h('h2', null, 'Overview shot'),
+        h('p', { class: 'muted small-text' }, 'Used when nobody is speaking, for seats without a shot, and as the safe cut-away.'),
+        h('div', { class: 'row-inline' }, cam, preset,
+          actionButton('Save', () => api.put('/room/overview', cam.value ? { cameraId: cam.value, preset: presetOf(preset) } : {}), { cls: 'small primary' }),
+          actionButton('Test', () => api.post(`/devices/cameras/${cam.value}/recall`, { preset: presetOf(preset) }), { cls: 'small secondary', disabled: !cam.value }),
+          actionButton('Take', () => api.post('/director/shot', {}), { cls: 'small secondary', disabled: !o })));
+    }
+
+    function renderLog() {
+      const d = store.topic('director');
+      replace(logBox, h('h2', null, 'Recent camera actions'), d?.log?.length
+        ? h('ul', { class: 'log' }, d.log.slice(0, 15).map(l => h('li', { class: l.error ? 'error' : null }, h('time', null, new Date(l.at).toLocaleTimeString()), ' ', l.message)))
+        : h('p', { class: 'muted small-text' }, 'No camera actions yet.'));
+    }
+
+    // Avoid wiping half-typed inputs: only rebuild the forms when their data actually changes.
+    let automationKey = '';
+    function renderAutomationIfChanged() {
+      const r = store.topic('room');
+      const key = JSON.stringify([r?.director, r?.overview, cameras().map(c => [c.id, c.name])]);
+      if (key === automationKey) return;
+      automationKey = key;
+      renderAutomation(); renderOverview();
+    }
+
     // ---------------------------------------------------------------- room view options (WO-053)
     const operateBox = h('div');
     function renderOperate() {
@@ -311,7 +382,7 @@ export default {
         h('p', { class: 'muted small-text' }, 'Applies to everyone using this LikeABosch server. The camera inspector always has a Preview button.'));
     }
 
-    function renderAll() { renderList(); renderForm(); renderControl(); renderSwitcher(); renderOperate(); }
+    function renderAll() { renderList(); renderForm(); renderControl(); renderSwitcher(); renderAutomationIfChanged(); renderOperate(); }
 
     el.append(
       h('h1', { id: 'view-title' }, 'Cameras & switcher'),
@@ -319,13 +390,19 @@ export default {
         h('div', { class: 'stack' },
           h('article', { class: 'card' }, h('h2', null, 'Cameras'), listBox, h('div', { class: 'form-slot' }, formBox)),
           h('article', { class: 'card' }, switcherBox),
+          h('article', { class: 'card' }, automationBox),
+          h('article', { class: 'card' }, overviewBox),
           h('article', { class: 'card' }, operateBox)),
-        h('article', { class: 'card' }, controlBox)),
+        h('div', { class: 'stack' },
+          h('article', { class: 'card' }, controlBox),
+          h('article', { class: 'card' }, logBox))),
     );
     renderAll();
-    const offOperate = store.subscribe(['topic:room'], renderOperate);
-    const offDevices = store.subscribe(['topic:devices.cameras', 'topic:devices.switcher'], () => { renderList(); renderSwitcher(); if (!editing) renderForm(); renderControlIfChanged(); });
-    return () => { offOperate(); offDevices(); };
+    renderLog();
+    const offRoom = store.subscribe(['topic:room'], () => { renderOperate(); renderAutomationIfChanged(); });
+    const offLog = store.subscribe(['topic:director'], renderLog);
+    const offDevices = store.subscribe(['topic:devices.cameras', 'topic:devices.switcher'], () => { renderList(); renderSwitcher(); if (!editing) renderForm(); renderControlIfChanged(); renderAutomationIfChanged(); });
+    return () => { offRoom(); offLog(); offDevices(); };
 
     function renderControlIfChanged() {
       // Re-render the control panel only when the selected camera's connection state changes (keeps inputs stable).

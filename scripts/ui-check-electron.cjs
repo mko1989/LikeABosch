@@ -576,19 +576,22 @@ app.whenReady().then(async () => {
         ok = ok && await waitFor("document.querySelector('.jog-pad') !== null");
         await js("(() => { const b = document.querySelector('.jog[title=\"Pan right\"]'); b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 })); b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1 })); })()");
         await shot('cameras');
-        // 2. Shots + automation
-        await js("location.hash = '#/settings/automation'");
+        // 2. Overview + behaviour (Settings → Cameras & switcher, WO-129), then the seat presets (Camera automation)
         ok = ok && await waitFor("document.querySelector('select[aria-label=\"Overview camera\"]') !== null");
         await js(setField('select[aria-label="Overview camera"]', 'cam-1'));
         await js(setField('input[aria-label="Overview preset"]', '0'));
-        ok = ok && await waitFor(`(() => { const b = [...document.querySelectorAll('.card button')].find(x => x.textContent === 'Save' && x.closest('.row-inline')); if (b) { b.click(); return true; } return false; })()`);
+        ok = ok && await waitFor(`(() => { const row = document.querySelector('select[aria-label="Overview camera"]').closest('.row-inline'); const b = [...row.querySelectorAll('button')].find(x => x.textContent === 'Save'); if (b) { b.click(); return true; } return false; })()`);
+        await sleep(300);
+        await js("(() => { const f = document.querySelector('form.automation-settings'); f.elements.enabled.checked = true; f.elements.delayMs.value = '0'; f.elements.minShotMs.value = '0'; f.requestSubmit(); })()");
+        ok = ok && await waitFor("fetch('/api/room').then(r => r.json()).then(b => b.data.director.enabled && b.data.overview?.cameraId === 'cam-1')");
+        await shot('cameras-automation-settings');
+        await js("location.hash = '#/settings/automation'");
         ok = ok && await waitFor("document.querySelector('select[aria-label=\"Camera for Seat 3\"]') !== null");
+        ok = ok && await waitFor("document.querySelector('form.automation-settings, select[aria-label=\"Overview camera\"]') === null");
         await js(setField('select[aria-label="Camera for Seat 3"]', 'cam-2'));
         await js(setField('input[aria-label="Preset for Seat 3"]', '3'));
         ok = ok && await waitFor(`(() => { const tr = [...document.querySelectorAll('tbody tr')].find(x => x.textContent.includes('Seat 3')); const b = tr && [...tr.querySelectorAll('button')].find(x => x.textContent === 'Save'); if (b) { b.click(); return true; } return false; })()`);
-        await sleep(300);
-        await js("(() => { const f = document.querySelector('form.settings'); f.elements.enabled.checked = true; f.elements.delayMs.value = '0'; f.elements.minShotMs.value = '0'; f.requestSubmit(); })()");
-        ok = ok && await waitFor("fetch('/api/room').then(r => r.json()).then(b => b.data.director.enabled && b.data.shots['seat-3']?.preset === 3 && b.data.overview?.cameraId === 'cam-1')");
+        ok = ok && await waitFor("fetch('/api/room').then(r => r.json()).then(b => b.data.shots['seat-3']?.preset === 3)");
         await shot('automation');
         // 3. Room: place seats + cameras, drag one seat
         await js("location.hash = '#/room'");

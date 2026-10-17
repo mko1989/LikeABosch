@@ -1,5 +1,6 @@
-// Settings → Camera automation (WO-040, DEC-012 §4): director settings, overview shot, per-seat shots, log.
+// Settings → Camera automation (WO-040, DEC-012 §4): which camera preset each seat gets.
 // WO-092: delete one seat's preset, all presets of a camera, or all saved presets.
+// WO-129: behaviour, overview shot and the action log moved to Settings → Cameras & switcher.
 import { h, replace, toast, toastError, actionButton } from '../dom.js';
 
 export default {
@@ -7,10 +8,7 @@ export default {
   title: 'Camera automation',
   topics: ['room'],
   mount(el, { store, api }) {
-    const settingsBox = h('div');
-    const overviewBox = h('div');
     const tableBody = h('tbody');
-    const logBox = h('div');
 
     const room = () => store.topic('room');
     const cameras = () => store.topic('devices.cameras')?.cameras ?? [];
@@ -18,49 +16,6 @@ export default {
     const presetOf = input => { const v = input.value.trim(); return /^\d+$/.test(v) ? Number(v) : v; };
     const camSelect = (selected, label) => h('select', { 'aria-label': label },
       h('option', { value: '' }, '— none —'), cameras().map(c => h('option', { value: c.id, selected: selected === c.id }, c.name)));
-
-    function renderSettings() {
-      const d = room()?.director;
-      if (!d) return;
-      const num = (name, label, value, max, hint) => h('label', { class: 'field' }, h('span', null, label),
-        h('input', { name, type: 'number', min: 0, max, step: 50, value: String(value) }), hint ? h('small', { class: 'muted' }, hint) : null);
-      const form = h('form', { class: 'settings', novalidate: true },
-        h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'enabled', checked: d.enabled }), ' Automatic camera control (follow the active microphone)'),
-        h('fieldset', { class: 'radio-group' }, h('legend', null, 'Moving a camera that is on air'),
-          h('label', { class: 'check' }, h('input', { type: 'radio', name: 'strategy', value: 'safe', checked: d.strategy === 'safe' }),
-            h('span', null, h('strong', null, 'Safe: '), 'never move the camera that is on air. Cut to the overview camera first, move, then cut back.')),
-          h('label', { class: 'check' }, h('input', { type: 'radio', name: 'strategy', value: 'live', checked: d.strategy === 'live' }),
-            h('span', null, h('strong', null, 'Live: '), 'recall the preset and cut immediately (camera movement may be visible).'))),
-        h('div', { class: 'row three' },
-          num('delayMs', 'Delay after mic on (ms)', d.delayMs, 10000, 'Ignore very short mic activations. A camera that is not on air already moves meanwhile; the overview after the last mic is immediate.'),
-          num('minShotMs', 'Minimum shot (ms)', d.minShotMs, 60000, 'Hold each speaker shot at least this long.'),
-          num('settleMs', 'Camera travel time (ms)', d.settleMs ?? 2500, 15000, 'Longest wait before cutting to a camera that was just moved (cameras that report arrival are cut to sooner).')),
-        h('div', { class: 'actions' }, h('button', { type: 'submit', class: 'primary' }, 'Save')));
-      form.addEventListener('submit', async e => {
-        e.preventDefault();
-        const f = n => form.elements.namedItem(n);
-        try {
-          await api.put('/room/director', {
-            enabled: f('enabled').checked, strategy: form.querySelector('input[name=strategy]:checked').value,
-            delayMs: Number(f('delayMs').value), minShotMs: Number(f('minShotMs').value), settleMs: Number(f('settleMs').value),
-          });
-          toast('Automation settings saved', 'success');
-        } catch (err) { toastError(err); }
-      });
-      replace(settingsBox, form);
-    }
-
-    function renderOverview() {
-      const o = room()?.overview;
-      const cam = camSelect(o?.cameraId, 'Overview camera');
-      const preset = h('input', { type: 'text', value: o?.preset ?? '', placeholder: 'Preset', 'aria-label': 'Overview preset', class: 'preset-input' });
-      replace(overviewBox,
-        h('p', { class: 'muted small-text' }, 'Used when nobody is speaking, for seats without a shot, and as the safe cut-away.'),
-        h('div', { class: 'row-inline' }, cam, preset,
-          actionButton('Save', () => api.put('/room/overview', cam.value ? { cameraId: cam.value, preset: presetOf(preset) } : {}), { cls: 'small primary' }),
-          actionButton('Test', () => api.post(`/devices/cameras/${cam.value}/recall`, { preset: presetOf(preset) }), { cls: 'small secondary', disabled: !cam.value }),
-          actionButton('Take', () => api.post('/director/shot', {}), { cls: 'small secondary', disabled: !o })));
-    }
 
     function renderTable() {
       const r = room();
@@ -105,34 +60,21 @@ export default {
           confirm: 'Delete the saved seat presets (and the overview shot when it uses that camera)? The positions stored in the cameras themselves are not touched.' })));
     }
 
-    function renderLog() {
-      const d = store.topic('director');
-      replace(logBox, d?.log?.length
-        ? h('ul', { class: 'log' }, d.log.slice(0, 15).map(l => h('li', { class: l.error ? 'error' : null }, h('time', null, new Date(l.at).toLocaleTimeString()), ' ', l.message)))
-        : h('p', { class: 'muted small-text' }, 'No camera actions yet.'));
-    }
-
     el.append(
       h('h1', { id: 'view-title' }, 'Camera automation'),
-      h('div', { class: 'split asym' },
-        h('div', { class: 'stack' },
-          h('article', { class: 'card' }, h('h2', null, 'Behaviour'), settingsBox),
-          h('article', { class: 'card' }, h('h2', null, 'Overview shot'), overviewBox),
-          h('article', { class: 'card' }, h('h2', null, 'Recent actions'), logBox)),
-        h('article', { class: 'card' }, h('h2', null, 'Seat shots'),
-          h('p', { class: 'muted small-text' }, 'Point the camera at the seat (Settings → Cameras jog pad), then “Store”. When the seat\'s microphone becomes active, this preset is recalled and the switcher cuts to the camera.'),
-          clearBox,
-          h('div', { class: 'table-wrap' }, h('table', { class: 'data' },
-            h('thead', null, h('tr', null, ['Seat', 'Camera', 'Preset', ''].map(t => h('th', { scope: 'col' }, t)))), tableBody)))),
+      h('article', { class: 'card' }, h('h2', null, 'Seat presets'),
+        h('p', { class: 'muted small-text' }, 'Point the camera at the seat (jog pad in ', h('a', { href: '#/settings/cameras' }, 'Settings → Cameras & switcher'), '), then “Store”. When the seat\'s microphone becomes active, this preset is recalled and the switcher cuts to the camera. Automatic on/off, timings and the overview shot are set there too.'),
+        clearBox,
+        h('div', { class: 'table-wrap' }, h('table', { class: 'data' },
+          h('thead', null, h('tr', null, ['Seat', 'Camera', 'Preset', ''].map(t => h('th', { scope: 'col' }, t)))), tableBody))),
     );
-    renderSettings(); renderOverview(); renderTable(); renderClear(); renderLog();
+    renderTable(); renderClear();
     let lastRoomKey = '';
-    return store.subscribe(['topic:room', 'topic:devices.cameras', 'topic:domain.seats', 'topic:director'], () => {
-      // Avoid wiping half-typed inputs: only rebuild forms when settings/shots/cameras actually change.
+    return store.subscribe(['topic:room', 'topic:devices.cameras', 'topic:domain.seats'], () => {
+      // Avoid wiping half-typed inputs: only rebuild when shots/cameras/seats actually change.
       const r = room();
-      const key = JSON.stringify([r?.director, r?.overview, r?.shots, cameras().map(c => [c.id, c.name]), seats().map(x => x.id)]);
-      if (key !== lastRoomKey) { lastRoomKey = key; renderSettings(); renderOverview(); renderTable(); renderClear(); }
-      renderLog();
+      const key = JSON.stringify([r?.overview, r?.shots, cameras().map(c => [c.id, c.name]), seats().map(x => x.id)]);
+      if (key !== lastRoomKey) { lastRoomKey = key; renderTable(); renderClear(); }
     });
   },
 };

@@ -232,6 +232,7 @@ export class DeviceManager extends EventEmitter {
     const connectionFields = ['driver', 'host', 'port', 'transport', 'framing', 'address', 'username', 'password'];
     if (Object.keys(patch).some(k => connectionFields.includes(k))) await this.#connectCamera(id);
     else this.#publish();
+    if ('automation' in patch) this.emit('automation'); // DEC-015: the director re-evaluates (WO-129)
     return this.#publicCamera(entry);
   }
 
@@ -333,6 +334,7 @@ export class DeviceManager extends EventEmitter {
     this.switcher.config = { ...this.switcher.config, ...patch };
     await this.#save();
     if (reconnect) await this.#connectSwitcher(); else this.#publish();
+    if ('automation' in patch) this.emit('automation');
     return this.publicSwitcher();
   }
 

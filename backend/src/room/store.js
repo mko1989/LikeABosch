@@ -75,6 +75,8 @@ export class RoomStore {
     this.queue = Promise.resolve(); // serialise mutations: concurrent saves would race on the temp file
     /** @type {(() => void) | null} called after every save (projects: updatedAt, DEC-016) */
     this.onSaved = null;
+    /** @type {(() => void) | null} called after the director settings were changed (the director re-evaluates, WO-129) */
+    this.onDirectorChanged = null;
   }
 
   /** Switch to another folder (a project, DEC-016): waits for pending saves, then loads that folder's room. */
@@ -322,7 +324,7 @@ export class RoomStore {
     };
     const details = Object.entries(patch ?? {}).filter(([k, v]) => !(k in allowed) || !allowed[k](v)).map(([k]) => `${k}: invalid`);
     if (details.length || !patch || typeof patch !== 'object') throw new AppError('VALIDATION', 'Invalid director settings', { details });
-    return this.#mutate(r => { r.director = { ...r.director, ...patch }; });
+    return this.#mutate(r => { r.director = { ...r.director, ...patch }; }).then(room => { this.onDirectorChanged?.(); return room; });
   }
 
   async setBackground(buffer, type) {
