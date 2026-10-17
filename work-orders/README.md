@@ -147,7 +147,7 @@ Statuses: `draft` · `ready` · `in-progress` · `blocked` · `review` · `done`
 | [WO-127](WO-127-room-widgets-on-plan-and-ptz.md) | Room widgets float on the plan (independent of the inspector) + PTZ widget (DEC-039) | 5 | review | 104, 054 | 2026-10-16 |
 | [WO-128](WO-128-release-v0-1-4.md) | Release v0.1.4 (WO-126, WO-127) | 4 | done | 126, 127 | 2026-10-16 |
 | [WO-129](WO-129-automation-starts-at-once-and-settings-move.md) | Camera automation works without a nudge; its settings move to Cameras & switcher | 5 | review | 039, 040, 056, 108 | 2026-10-17 |
-| [WO-130](WO-130-release-v0-1-5.md) | Release v0.1.5 (WO-129) | 4 | in-progress | 129 | 2026-10-17 |
+| [WO-130](WO-130-release-v0-1-5.md) | Release v0.1.5 (WO-129) | 4 | done | 129 | 2026-10-17 |
 
 ## Suggested order / parallelism
 

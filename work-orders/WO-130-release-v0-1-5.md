@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | in-progress |
+| **Status** | done |
 | **Phase** | 4 Hardening |
 | **Depends on** | WO-129 |
 | **Assignee** | Claude Opus (main) |
@@ -26,7 +26,7 @@ upload assets one by one, publish.
 ## Acceptance criteria
 - [x] `npm test` green on the release commit.
 - [x] `npm run dist` produced the 6 assets `LikeABosch-0.1.5-*`; no Bosch text in the bundles (scan as in WO-107).
-- [ ] Tag `v0.1.5` pushed; release published with the assets.
+- [x] Tag `v0.1.5` pushed; release published with the assets.
 
 ## Work log
 - 2026-10-17 (Claude Opus): created, in-progress. The user bumped the root package.json to 0.1.5 and ran `npm run dist`
@@ -39,7 +39,14 @@ upload assets one by one, publish.
   unchanged since v0.1.4 (`git diff v0.1.4 -- companion-module-dev` empty): the same two packages are attached.
   `npm test` 379/379 (WO-129 run, no code change since).
 
+- 2026-10-17 (Claude Opus): committed `fc39e07` (WO-129) and `ab7911a` (release), annotated tag `v0.1.5`, pushed main +
+  tag. `gh release create --draft` without assets, then `gh release upload --clobber` per file: all 8 ok first try,
+  sizes match the local files; `gh release edit --draft=false --latest`. Release
+  https://github.com/mko1989/LikeABosch/releases/tag/v0.1.5 (Latest, not a draft, not a pre-release). Status → done.
+
 ## Decisions
 - Patch bump (0.1.5): one director fix and a Settings layout change (WO-129).
 
 ## Handoff
+Delivered: release v0.1.5 (6 installers + the 2 Companion module packages unchanged since 0.1.2). Not signed (WO-029).
+WO-129 stays in review (checked against simulated cameras / switchers only).
